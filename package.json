@@ -1,0 +1,19 @@
+{
+  "name": "archaeologist-company-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Archaeologist: The Enterprise Decision & Blast-Radius Brain (Track 03 - Powered by FalkorDB)",
+  "scripts": {
+    "build": "npm run build --prefix frontend",
+    "dev": "npm run dev --prefix frontend",
+    "start": "npm run dev --prefix frontend"
+  },
+  "keywords": [
+    "falkordb",
+    "graph-database",
+    "ai-agent",
+    "company-brain",
+    "mcp"
+  ],
+  "author": "Om Umale (@byterecon)"
+}
