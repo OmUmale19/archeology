@@ -60,9 +60,12 @@ def seed_graph():
             properties=tm
         )
         if db_adapter.is_connected and db_adapter.graph:
+            team_props = dict(tm)
+            if "productivity_score" not in team_props:
+                team_props["productivity_score"] = team_props.get("velocity", "90%")
             db_adapter.query(
                 "MERGE (t:Team {id: $id}) SET t.name = $name, t.lead = $lead, t.productivity_score = $productivity_score, t.health = $health",
-                tm
+                team_props
             )
 
     # 4. Seed Services

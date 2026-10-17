@@ -27,19 +27,31 @@ class FalkorDBAdapter:
 
     def _connect(self):
         try:
-            self.client = FalkorDB(
-                host=settings.FALKORDB_HOST,
-                port=settings.FALKORDB_PORT,
-                password=settings.FALKORDB_PASSWORD if settings.FALKORDB_PASSWORD else None
-            )
+            if settings.FALKORDB_URL:
+                self.client = FalkorDB.from_url(settings.FALKORDB_URL)
+            else:
+                connect_kwargs = {
+                    "host": settings.FALKORDB_HOST,
+                    "port": settings.FALKORDB_PORT,
+                }
+                if settings.FALKORDB_USERNAME:
+                    connect_kwargs["username"] = settings.FALKORDB_USERNAME
+                if settings.FALKORDB_PASSWORD:
+                    connect_kwargs["password"] = settings.FALKORDB_PASSWORD
+                if settings.FALKORDB_SSL:
+                    connect_kwargs["ssl"] = True
+                self.client = FalkorDB(**connect_kwargs)
+
             # Try a lightweight ping
             self.graph = self.client.select_graph(self.graph_name)
             self.graph.query("RETURN 1")
             self.is_connected = True
-            logger.info(f"Connected to FalkorDB on {settings.FALKORDB_HOST}:{settings.FALKORDB_PORT}, graph: {self.graph_name}")
+            endpoint_repr = settings.FALKORDB_URL or f"{settings.FALKORDB_HOST}:{settings.FALKORDB_PORT}"
+            logger.info(f"Connected to FalkorDB on {endpoint_repr}, graph: {self.graph_name}")
         except Exception as e:
             self.is_connected = False
-            logger.warning(f"FalkorDB not reachable at {settings.FALKORDB_HOST}:{settings.FALKORDB_PORT} ({e}). Using in-memory graph engine.")
+            endpoint_repr = settings.FALKORDB_URL or f"{settings.FALKORDB_HOST}:{settings.FALKORDB_PORT}"
+            logger.warning(f"FalkorDB not reachable at {endpoint_repr} ({e}). Using in-memory graph engine.")
 
     def query(self, cypher: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Run a Cypher query on FalkorDB if connected, or gracefully handle."""

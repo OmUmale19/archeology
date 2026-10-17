@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from app.adapters.falkordb_adapter import db_adapter
 from app.agents.tools import execute_tool
 from app.domain.models import GraphPayload
+from app.services.llm_service import gemini_service
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +348,18 @@ class BrainAgent:
             ]
             
         else:
+            # Check if Gemini AI is available for natural language reasoning over FalkorDB
+            if gemini_service.is_available():
+                gemini_res = gemini_service.query_graph(message)
+                if gemini_res:
+                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                    return {
+                        "answer": gemini_res["answer"],
+                        "tool_called": gemini_res["tool_called"],
+                        "latency_ms": elapsed_ms,
+                        "graph": gemini_res["graph"],
+                        "action_cards": gemini_res.get("action_cards", [])
+                    }
 
             # 2. Dynamic Graph Entity & Traversal Reasoning
             dynamic_result = self.search_graph_entities(message)
