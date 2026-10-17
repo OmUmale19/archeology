@@ -158,8 +158,38 @@ class BrainAgent:
         
         logger.info(f"Agent received prompt: {message}")
         
+        # Check for empty graph state
+        if len(db_adapter._node_data) == 0:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            return {
+                "answer": (
+                    "### 🧠 Knowledge Graph is Empty\n\n"
+                    "All existing data has been cleared. The company brain is ready for your input.\n\n"
+                    "**Two ways to input data:**\n"
+                    "1. **Entity by Entity:** Click **`+ Add Entity`** in the top navigation bar to create a Project, Team, Person, Service, or Decision.\n"
+                    "2. **Project Script:** Click **`📜 Ingest Project Script`** or execute `python scripts/ingest_project.py` to batch-import a complete project with priority, team members, and architecture."
+                ),
+                "tool_called": "empty_graph_status",
+                "latency_ms": elapsed_ms,
+                "graph": {"nodes": [], "edges": []},
+                "action_cards": [
+                    {
+                        "title": "Open Add Entity Dialog",
+                        "action_type": "OPEN_ADD_ENTITY",
+                        "payload": {},
+                        "button_label": "➕ Add Single Entity"
+                    },
+                    {
+                        "title": "Open Project Script Ingestion",
+                        "action_type": "OPEN_SCRIPT_MODAL",
+                        "payload": {},
+                        "button_label": "📜 Ingest Project Script"
+                    }
+                ]
+            }
+        
         # 1. Preset Scenarios for Hackathon Highlights
-        if any(w in msg_lower for w in ["timeout", "checkout", "7 min", "cart", "redis memory"]):
+        if any(w in msg_lower for w in ["timeout", "7 min", "cart lock", "redis memory"]) or ("checkout" in msg_lower and "timeout" in msg_lower):
             tool_name = "trace_decision_lineage"
             tool_args = {"target_identifier": "checkout timeout"}
             tool_result = execute_tool(tool_name, tool_args)

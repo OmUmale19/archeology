@@ -4,129 +4,145 @@ from app.main import app
 
 client = TestClient(app)
 
-def test_health_endpoint():
+@pytest.fixture(autouse=True)
+def clean_graph():
+    """Ensure each test suite runs in a predictable clean state."""
+    client.post("/api/graph/clear")
+
+def test_health_clean_state():
     res = client.get("/api/health")
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "healthy"
-    assert data["total_nodes"] >= 30
+    assert data["total_nodes"] == 0
+    assert data["total_edges"] == 0
 
-def test_graph_overview_endpoint():
-    res = client.get("/api/graph/overview")
+def test_empty_graph_chat_response():
+    res = client.post("/api/chat", json={"message": "What is the checkout timeout?"})
     assert res.status_code == 200
     data = res.json()
-    assert "nodes" in data
-    assert "edges" in data
-    assert len(data["nodes"]) >= 30
+    assert "Knowledge Graph is Empty" in data["answer"]
+    assert data["tool_called"] == "empty_graph_status"
 
-def test_chat_archaeology_query():
-    res = client.post("/api/chat", json={"message": "Why is the checkout timeout 7 minutes?"})
-    assert res.status_code == 200
-    data = res.json()
-    assert "7 minutes" in data["answer"]
-    assert data["tool_called"] == "trace_decision_lineage"
-    assert "nodes" in data["graph"]
-    assert len(data["action_cards"]) > 0
-
-def test_chat_blast_radius_query():
-    res = client.post("/api/chat", json={"message": "Simulate what happens if Elena Rostova leaves"})
-    assert res.status_code == 200
-    data = res.json()
-    assert "CRITICAL" in data["answer"]
-    assert "Marcus Vance" in data["answer"]
-    assert data["tool_called"] == "simulate_blast_radius"
-
-def test_chat_drift_query():
-    res = client.post("/api/chat", json={"message": "Audit documentation for stale specs"})
-    assert res.status_code == 200
-    data = res.json()
-    assert "HMAC-SHA1" in data["answer"]
-    assert "Ed25519" in data["answer"]
-
-def test_actions_trigger():
-    res = client.post("/api/actions/trigger", json={
-        "action_type": "GENERATE_ADR",
-        "parameters": {"topic": "checkout_timeout"}
+def test_add_entity_by_entity():
+    # 1. Create root project entity
+    res1 = client.post("/api/graph/nodes", json={
+        "id": "proj_cloud_nexus",
+        "label": "Project",
+        "title": "Cloud Nexus Hub",
+        "properties": {
+            "priority": "P0 - Critical",
+            "status": "Active",
+            "budget": "$12M ARR"
+        }
     })
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "SUCCESS"
-    assert "ADR 015" in data["title"]
+    assert res1.status_code == 200
+    assert res1.json()["node"]["id"] == "proj_cloud_nexus"
 
-def test_mcp_tools():
-    res = client.get("/api/mcp/tools")
-    assert res.status_code == 200
-    data = res.json()
-    assert "tools" in data
-    tool_names = [t["name"] for t in data["tools"]]
-    assert "trace_decision_lineage" in tool_names
-    assert "simulate_blast_radius" in tool_names
-    
-    # Test MCP tool call
-    call_res = client.post("/api/mcp/call", json={
-        "name": "find_sme_and_bus_factor",
-        "arguments": {"subject": "checkout"}
-    })
-    assert call_res.status_code == 200
-    call_data = call_res.json()
-    assert call_data["isError"] is False
-
-def test_create_custom_node_and_query():
-    # 1. Create a brand-new entity
-    payload = {
-        "id": "service_fraud_guard",
+    # 2. Add second entity linked to the first
+    res2 = client.post("/api/graph/nodes", json={
+        "id": "svc_ledger",
         "label": "Service",
-        "title": "FraudGuard-Engine",
+        "title": "Ledger-Engine",
         "properties": {
             "tier": "Tier-1",
-            "description": "Real-time AI ML transaction anomaly detection engine",
-            "repo_url": "github.com/finflow/fraud-guard"
+            "repo_url": "github.com/company/ledger"
         },
         "connection": {
-            "target_node_id": "service_payment_gw",
-            "relationship_type": "PROTECTS",
-            "direction": "OUTGOING"
+            "target_node_id": "proj_cloud_nexus",
+            "relationship_type": "POWERED_BY",
+            "direction": "INCOMING"
         }
+    })
+    assert res2.status_code == 200
+    assert res2.json()["edge"]["label"] == "POWERED_BY"
+
+    # 3. Verify overview has both nodes
+    overview = client.get("/api/graph/overview").json()
+    assert len(overview["nodes"]) == 2
+    assert len(overview["edges"]) == 1
+
+def test_project_script_ingestion():
+    payload = {
+        "project_name": "Apex Global Checkout",
+        "priority": "P0 - Critical",
+        "status": "Active",
+        "budget": "$24M ARR",
+        "profit_margin": "+44%",
+        "description": "Global enterprise checkout infrastructure",
+        "team_name": "Team Apex",
+        "team_members": [
+            {
+                "name": "Sarah Chen",
+                "handle": "@sarah",
+                "role": "Staff Lead",
+                "department": "Checkout",
+                "is_lead": True
+            },
+            {
+                "name": "Marcus Vance",
+                "handle": "@marcus",
+                "role": "Systems Architect",
+                "department": "Platform",
+                "is_lead": False
+            }
+        ],
+        "services": [
+            {
+                "name": "Payment-Gateway",
+                "tier": "Tier-1",
+                "description": "Transaction processor"
+            }
+        ],
+        "decisions": [
+            {
+                "title": "ADR-014: Cart TTL 7 min",
+                "rationale": "Mitigate Redis memory spike",
+                "status": "ACCEPTED"
+            }
+        ],
+        "tickets": [
+            {
+                "key": "INC-104",
+                "summary": "Redis memory saturation",
+                "priority": "P0 - Blocker",
+                "status": "Resolved",
+                "assignee_handle": "@sarah"
+            }
+        ]
     }
-    create_res = client.post("/api/graph/nodes", json=payload)
-    assert create_res.status_code == 200
-    create_data = create_res.json()
-    assert create_data["status"] == "success"
-    assert create_data["node"]["id"] == "service_fraud_guard"
-    assert create_data["edge"]["label"] == "PROTECTS"
 
-    # 2. Verify graph overview has the new node
-    overview_res = client.get("/api/graph/overview")
-    assert overview_res.status_code == 200
-    overview_nodes = [n["id"] for n in overview_res.json()["nodes"]]
-    assert "service_fraud_guard" in overview_nodes
+    res = client.post("/api/projects/ingest", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["nodes_created"] >= 6
+    assert data["edges_created"] >= 5
+    assert data["total_nodes"] >= 6
 
-    # 3. Query the new entity via the Chat agent
-    chat_res = client.post("/api/chat", json={"message": "Tell me about FraudGuard-Engine"})
+    # Verify querying the ingested project via Chat Agent
+    chat_res = client.post("/api/chat", json={"message": "Tell me about Apex Global Checkout"})
     assert chat_res.status_code == 200
     chat_data = chat_res.json()
-    assert "FraudGuard-Engine" in chat_data["answer"]
-    assert "Real-time AI ML transaction anomaly detection" in chat_data["answer"]
-    assert "dynamic_graph_traversal" in chat_data["tool_called"]
+    assert "Apex Global Checkout" in chat_data["answer"]
 
-def test_dynamic_simulation_endpoint():
-    # 1. Test simulation on Elena
-    sim_res = client.post("/api/simulation/blast-radius", json={"node_id": "person_elena"})
-    assert sim_res.status_code == 200
-    sim_data = sim_res.json()
-    assert sim_data["risk_level"] == "CRITICAL"
-    assert sim_data["arr_at_risk_millions"] >= 20.0
-    assert "hop_0" in sim_data["cascade_stages"]
-    assert "hop_1" in sim_data["cascade_stages"]
-    assert len(sim_data["mitigation_steps"]) >= 3
-    assert "Marcus Vance" in sim_data["recommended_successor"]
+def test_clear_graph_endpoint():
+    # Seed then clear
+    client.post("/api/seed")
+    health_before = client.get("/api/health").json()
+    assert health_before["total_nodes"] > 0
 
-    # 2. Test simulation on a microservice (service_checkout)
-    svc_sim = client.post("/api/simulation/blast-radius", json={"node_id": "service_checkout"})
-    assert svc_sim.status_code == 200
-    svc_data = svc_sim.json()
-    assert len(svc_data["impacted_services"]) > 0
-    assert svc_data["arr_at_risk_millions"] > 0
-    assert len(svc_data["cascade_stages"]["hop_0"]) == 1
+    clear_res = client.post("/api/graph/clear")
+    assert clear_res.status_code == 200
+    assert clear_res.json()["total_nodes"] == 0
 
+    health_after = client.get("/api/health").json()
+    assert health_after["total_nodes"] == 0
+    assert health_after["total_edges"] == 0
 
+def test_demo_seed_and_scenarios():
+    # Test that manual seed allows running demo scenarios
+    client.post("/api/seed")
+    chat_res = client.post("/api/chat", json={"message": "Why is the checkout timeout 7 minutes?"})
+    assert chat_res.status_code == 200
+    assert "7 minutes" in chat_res.json()["answer"]

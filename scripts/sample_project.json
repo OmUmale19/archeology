@@ -1,0 +1,87 @@
+{
+  "project_name": "Apex Global Checkout",
+  "priority": "P0 - Critical",
+  "status": "Active",
+  "budget": "$24,000,000 ARR",
+  "profit_margin": "+44% Net Margin",
+  "description": "Global enterprise checkout infrastructure handling multi-region checkout transactions with 99.99% contractual uptime.",
+  "team_name": "Team Apex (Checkout Core)",
+  "team_members": [
+    {
+      "name": "Sarah Chen",
+      "handle": "@sarah",
+      "role": "Staff Engineering Lead",
+      "department": "Checkout Engineering",
+      "is_lead": true
+    },
+    {
+      "name": "Marcus Vance",
+      "handle": "@marcus",
+      "role": "Principal Systems Architect",
+      "department": "Platform Architecture",
+      "is_lead": false
+    },
+    {
+      "name": "Elena Rostova",
+      "handle": "@elena",
+      "role": "Senior Distributed Systems Engineer",
+      "department": "Ledger & Core Services",
+      "is_lead": false
+    },
+    {
+      "name": "David Kim",
+      "handle": "@david",
+      "role": "Site Reliability Lead",
+      "department": "Infrastructure & Cloud Ops",
+      "is_lead": false
+    }
+  ],
+  "services": [
+    {
+      "name": "Payment-Gateway",
+      "tier": "Tier-1",
+      "description": "Synchronous gateway authorizing customer card transactions.",
+      "repo_url": "github.com/company/payment-gateway"
+    },
+    {
+      "name": "Billing-Core",
+      "tier": "Tier-1",
+      "description": "Batch ledger reconciliation and tax compliance processor.",
+      "repo_url": "github.com/company/billing-core"
+    },
+    {
+      "name": "Fraud-Shield",
+      "tier": "Tier-2",
+      "description": "Real-time AI behavioral transaction scoring service.",
+      "repo_url": "github.com/company/fraud-shield"
+    }
+  ],
+  "decisions": [
+    {
+      "title": "ADR-014: Set Checkout Session Lock TTL to 7 Minutes",
+      "status": "ACCEPTED",
+      "rationale": "Prevents Redis cluster saturation in peak seasons while protecting 94% of buyer sessions."
+    },
+    {
+      "title": "ADR-018: Implement Ed25519 Partner Webhook Verification",
+      "status": "ACCEPTED",
+      "rationale": "Replaced legacy HMAC-SHA1 to prevent timing side-channel attacks."
+    }
+  ],
+  "tickets": [
+    {
+      "key": "INC-104",
+      "summary": "Redis memory saturation during flash sale spike",
+      "priority": "P0 - Blocker",
+      "status": "Resolved",
+      "assignee_handle": "@david"
+    },
+    {
+      "key": "RFC-205",
+      "summary": "Implement 7-minute cart lock policy",
+      "priority": "P1 - High",
+      "status": "Implemented",
+      "assignee_handle": "@sarah"
+    }
+  ]
+}

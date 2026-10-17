@@ -53,6 +53,27 @@ export async function reseedGraph() {
   return await res.json();
 }
 
+export async function clearGraphData() {
+  const res = await fetch(`${API_BASE}/graph/clear`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`Clear graph failed: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function ingestProject(payload) {
+  const res = await fetch(`${API_BASE}/projects/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to ingest project: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
 export async function createGraphNode(payload) {
   const res = await fetch(`${API_BASE}/graph/nodes`, {
     method: "POST",

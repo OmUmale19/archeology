@@ -1,28 +1,38 @@
 import React, { useState } from "react";
-import { X, Plus, Server, User, AlertCircle, FileText, Layers, Link2, Sparkles, ArrowRight } from "lucide-react";
+import { X, Plus, Server, User, AlertCircle, FileText, Layers, Link2, Sparkles, ArrowRight, Briefcase, Users } from "lucide-react";
 
 const ENTITY_TYPES = [
-  { label: "Service", icon: Server, color: "#6366f1", bg: "rgba(99, 102, 241, 0.15)", desc: "Microservice / API / Worker" },
+  { label: "Project", icon: Briefcase, color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", desc: "Product / Strategic Initiative" },
+  { label: "Team", icon: Users, color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)", desc: "Delivery Squad / Engineering Group" },
   { label: "Person", icon: User, color: "#38bdf8", bg: "rgba(56, 189, 248, 0.15)", desc: "Engineer / Architect / Lead" },
-  { label: "JiraTicket", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", desc: "Incident / RFC / Issue" },
+  { label: "Service", icon: Server, color: "#6366f1", bg: "rgba(99, 102, 241, 0.15)", desc: "Microservice / API / Worker" },
   { label: "Decision", icon: FileText, color: "#ec4899", bg: "rgba(236, 72, 153, 0.15)", desc: "ADR / Architecture Decision" },
+  { label: "JiraTicket", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", desc: "Incident / RFC / Issue" },
   { label: "Document", icon: Layers, color: "#14b8a6", bg: "rgba(20, 184, 166, 0.15)", desc: "Spec / Runbook / Doc" },
 ];
 
 const COMMON_RELATIONSHIPS = [
+  "DELIVERS",
+  "MEMBER_OF",
+  "LEADS",
+  "CONTRIBUTES_TO",
+  "POWERED_BY",
+  "MAINTAINS",
   "DEPENDS_ON",
   "AUTHORED_BY",
   "MAINTAINED_BY",
   "RESOLVES",
   "DOCUMENTED_IN",
-  "IMPACTED_BY",
+  "GOVERNED_BY",
+  "TRACKS",
   "RELATES_TO"
 ];
 
 export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmit }) {
   if (!isOpen) return null;
 
-  const [selectedType, setSelectedType] = useState("Service");
+  const hasExistingNodes = existingNodes && existingNodes.length > 0;
+  const [selectedType, setSelectedType] = useState("Project");
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState({
     tier: "Tier-1",
@@ -31,18 +41,22 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
     role: "Senior Software Engineer",
     department: "Core Platform",
     handle: "",
+    project_priority: "P0 - Critical",
+    budget: "$15,000,000 ARR",
+    profit_margin: "+42% Margin",
+    lead: "",
     issue_type: "Incident",
     priority: "P1 - High",
-    status: "Open",
+    status: "Active",
     summary: "",
     rationale: "",
     doc_type: "ADR",
     content_summary: "",
   });
 
-  const [linkToExisting, setLinkToExisting] = useState(true);
-  const [targetNodeId, setTargetNodeId] = useState(existingNodes?.[0]?.id || "");
-  const [relationshipType, setRelationshipType] = useState("DEPENDS_ON");
+  const [linkToExisting, setLinkToExisting] = useState(hasExistingNodes);
+  const [targetNodeId, setTargetNodeId] = useState(hasExistingNodes ? existingNodes[0].id : "");
+  const [relationshipType, setRelationshipType] = useState(hasExistingNodes ? "DEPENDS_ON" : "RELATES_TO");
   const [direction, setDirection] = useState("OUTGOING");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -63,7 +77,25 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
     try {
       // Build properties payload based on selected type
       let payloadProps = {};
-      if (selectedType === "Service") {
+      if (selectedType === "Project") {
+        payloadProps = {
+          name: title,
+          priority: properties.project_priority,
+          status: properties.status,
+          budget: properties.budget,
+          profit_margin: properties.profit_margin,
+          description: properties.description || `Strategic initiative: ${title}`,
+          node_size: 92,
+        };
+      } else if (selectedType === "Team") {
+        payloadProps = {
+          name: title,
+          lead: properties.lead || "@lead",
+          department: properties.department,
+          health: "EXCELLENT",
+          node_size: 65,
+        };
+      } else if (selectedType === "Service") {
         payloadProps = {
           name: title,
           tier: properties.tier,
@@ -189,8 +221,10 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
                 type="text"
                 className="modal-text-input"
                 placeholder={
+                  selectedType === "Project" ? "e.g. Apex Global Checkout, Enterprise Payment Mesh" :
+                  selectedType === "Team" ? "e.g. Team Alpha (Checkout Core), Platform SRE Squad" :
                   selectedType === "Service" ? "e.g. Fraud-Guard-Service, Notification-Worker" :
-                  selectedType === "Person" ? "e.g. Alex Rivera, Sofia Patel" :
+                  selectedType === "Person" ? "e.g. Sarah Chen, Marcus Vance" :
                   selectedType === "JiraTicket" ? "e.g. INC-502 or Auth Token Leakage Incident" :
                   selectedType === "Decision" ? "e.g. ADR-016: Migrate to Kafka Event Stream" :
                   "e.g. Payment SLA Runbook v2"
@@ -203,6 +237,92 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
             </div>
 
             {/* Dynamic Specific Fields */}
+            {selectedType === "Project" && (
+              <div className="form-subgrid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div>
+                  <label className="input-field-label">Project Priority</label>
+                  <select
+                    className="modal-select-input"
+                    value={properties.project_priority}
+                    onChange={(e) => handlePropChange("project_priority", e.target.value)}
+                  >
+                    <option value="P0 - Critical">P0 - Critical (Mission Critical)</option>
+                    <option value="P1 - High">P1 - High Priority</option>
+                    <option value="P2 - Medium">P2 - Medium</option>
+                    <option value="P3 - Low">P3 - Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="input-field-label">Project Status</label>
+                  <select
+                    className="modal-select-input"
+                    value={properties.status}
+                    onChange={(e) => handlePropChange("status", e.target.value)}
+                  >
+                    <option value="Active">Active / In Production</option>
+                    <option value="In Progress">In Progress (Active Sprint)</option>
+                    <option value="In Planning">In Planning / RFC</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="input-field-label">Annual Revenue / Budget</label>
+                  <input
+                    type="text"
+                    className="modal-text-input"
+                    placeholder="e.g. $18,000,000 ARR"
+                    value={properties.budget}
+                    onChange={(e) => handlePropChange("budget", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="input-field-label">Profit Margin / ROI</label>
+                  <input
+                    type="text"
+                    className="modal-text-input"
+                    placeholder="e.g. +42% Net Margin"
+                    value={properties.profit_margin}
+                    onChange={(e) => handlePropChange("profit_margin", e.target.value)}
+                  />
+                </div>
+                <div style={{ gridColumn: "span 2" }}>
+                  <label className="input-field-label">Strategic Deliverable Description</label>
+                  <input
+                    type="text"
+                    className="modal-text-input"
+                    placeholder="e.g. Core enterprise payment checkout engine handling SLA commitments"
+                    value={properties.description}
+                    onChange={(e) => handlePropChange("description", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedType === "Team" && (
+              <div className="form-subgrid">
+                <div>
+                  <label className="input-field-label">Team Lead (@handle)</label>
+                  <input
+                    type="text"
+                    className="modal-text-input"
+                    placeholder="e.g. @sarah"
+                    value={properties.lead}
+                    onChange={(e) => handlePropChange("lead", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="input-field-label">Department / Squad Focus</label>
+                  <input
+                    type="text"
+                    className="modal-text-input"
+                    placeholder="e.g. Checkout Engineering"
+                    value={properties.department}
+                    onChange={(e) => handlePropChange("department", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
             {selectedType === "Service" && (
               <div className="form-subgrid">
                 <div>
@@ -313,7 +433,7 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
                 </label>
               </div>
 
-              {linkToExisting && (
+              {linkToExisting && hasExistingNodes && (
                 <div className="connection-controls">
                   <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: "10px" }}>
                     <div>
@@ -366,6 +486,12 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
                       {existingNodes?.find((n) => n.id === targetNodeId)?.title || "Target Node"}
                     </span>
                   </div>
+                </div>
+              )}
+
+              {linkToExisting && !hasExistingNodes && (
+                <div style={{ padding: "12px 14px", background: "rgba(56, 189, 248, 0.08)", border: "1px dashed rgba(56, 189, 248, 0.3)", borderRadius: "8px", fontSize: "0.82rem", color: "#7dd3fc" }}>
+                  💡 <strong>Initial Node in Knowledge Graph:</strong> No other nodes exist yet. This entity will be created as the initial root entity, and you can connect other nodes to it!
                 </div>
               )}
             </div>

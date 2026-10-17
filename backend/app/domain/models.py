@@ -170,8 +170,49 @@ class CreateNodeConnection(BaseModel):
 
 class CreateNodeRequest(BaseModel):
     id: Optional[str] = None
-    label: str  # "Service", "Person", "JiraTicket", "Decision", "Document"
+    label: str  # "Project", "Team", "Service", "Person", "JiraTicket", "Decision", "Document"
     title: str
     properties: Dict[str, Any] = Field(default_factory=dict)
     connection: Optional[CreateNodeConnection] = None
+
+# --- Project Ingestion Script Schema ---
+
+class TeamMemberPayload(BaseModel):
+    name: str
+    handle: Optional[str] = None
+    role: str = "Senior Engineer"
+    department: str = "Platform"
+    is_lead: bool = False
+
+class ServicePayload(BaseModel):
+    name: str
+    tier: str = "Tier-1"
+    description: Optional[str] = None
+    repo_url: Optional[str] = None
+
+class DecisionPayload(BaseModel):
+    title: str
+    rationale: str
+    status: str = "ACCEPTED"
+
+class TicketPayload(BaseModel):
+    key: str
+    summary: str
+    priority: str = "P1 - High"
+    status: str = "In Progress"
+    assignee_handle: Optional[str] = None
+
+class IngestProjectRequest(BaseModel):
+    project_name: str
+    priority: str = "P0 - Critical"  # P0 - Critical, P1 - High, P2 - Medium, P3 - Low
+    status: str = "Active"           # Active, In Progress, In Planning, Delivered
+    budget: Optional[str] = "$15M ARR"
+    profit_margin: Optional[str] = "+40%"
+    description: Optional[str] = None
+    team_name: Optional[str] = None
+    team_members: List[TeamMemberPayload] = Field(default_factory=list)
+    services: List[ServicePayload] = Field(default_factory=list)
+    decisions: List[DecisionPayload] = Field(default_factory=list)
+    tickets: List[TicketPayload] = Field(default_factory=list)
+
 

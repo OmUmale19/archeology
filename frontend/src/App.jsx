@@ -6,8 +6,18 @@ import GraphCanvas from "./components/GraphCanvas";
 import NodeInspector from "./components/NodeInspector";
 import ActionModal from "./components/ActionModal";
 import AddEntityModal from "./components/AddEntityModal";
+import ProjectScriptModal from "./components/ProjectScriptModal";
 import DisasterHUD from "./components/DisasterHUD";
-import { fetchHealth, fetchGraphOverview, sendChatMessage, triggerAction, reseedGraph, createGraphNode, simulateBlastRadius } from "./services/api";
+import {
+  fetchHealth,
+  fetchGraphOverview,
+  sendChatMessage,
+  triggerAction,
+  clearGraphData,
+  ingestProject,
+  createGraphNode,
+  simulateBlastRadius
+} from "./services/api";
 
 export default function App() {
   const [health, setHealth] = useState(null);
@@ -19,13 +29,13 @@ export default function App() {
   const [isResetting, setIsResetting] = useState(false);
   const [actionResult, setActionResult] = useState(null);
   const [isAddEntityOpen, setIsAddEntityOpen] = useState(false);
+  const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
   const [activeSimulation, setActiveSimulation] = useState(null);
-
 
   const [messages, setMessages] = useState([
     {
       sender: "agent",
-      text: "### Autonomous Company Brain\nConnected organizational context layer powered by **FalkorDB**.\n\nAsk any question about architectural decisions, key-person risk, or documentation drift across Slack, GitHub, Jira, and Confluence. You can also click **+ Add Entity** in the top navigation to inject your own services, engineers, incidents, or decisions into the graph!",
+      text: "### Autonomous Company Brain\nConnected organizational context layer powered by **FalkorDB**.\n\nAll previous data has been cleaned. You can input data into the company brain in two ways:\n\n1. **+ Add Entity:** Click the button in the header to create an entity one-by-one (Project, Team, Person, Service, Decision, or Ticket).\n2. **📜 Ingest Project Script:** Click the script button in the header or run `python scripts/ingest_project.py` in your terminal to batch-import a complete project ecosystem with priority, team members, and architecture!",
       toolCalled: null,
       latency: null,
       actionCards: [],
@@ -92,6 +102,14 @@ export default function App() {
   };
 
   const handleTriggerAction = async (actionType, payload) => {
+    if (actionType === "OPEN_ADD_ENTITY") {
+      setIsAddEntityOpen(true);
+      return;
+    }
+    if (actionType === "OPEN_SCRIPT_MODAL") {
+      setIsScriptModalOpen(true);
+      return;
+    }
     if (actionType === "QUERY_ENTITY") {
       handleSendMessage(`Tell me everything you know about: ${payload.title}`);
       return;
@@ -185,19 +203,84 @@ export default function App() {
     }
   };
 
-  const handleResetGraph = async () => {
+  const handleClearData = async () => {
+    if (!window.confirm("Are you sure you want to completely delete all graph data? This will wipe the graph database.")) {
+      return;
+    }
     setIsResetting(true);
     try {
-      await reseedGraph();
+      await clearGraphData();
       await loadGraph();
       await loadHealth();
       setHighlightedNodeIds([]);
       setActiveSimulation(null);
+      setSelectedNode(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "agent",
+          text: "🗑️ **All Graph Data Has Been Cleared!**\n\nThe knowledge graph is now completely empty (0 nodes, 0 edges).\n\nYou can input data using either of the two methods:\n1. Click **`+ Add Entity`** to add entities individually.\n2. Click **`📜 Ingest Project Script`** or execute `python scripts/ingest_project.py` in your terminal to batch-import a project.",
+          toolCalled: "clear_all_graph_data()",
+          latency: 8,
+          actionCards: [
+            {
+              title: "Add Entity",
+              action_type: "OPEN_ADD_ENTITY",
+              payload: {},
+              button_label: "➕ Add First Entity",
+            },
+            {
+              title: "Ingest Project Script",
+              action_type: "OPEN_SCRIPT_MODAL",
+              payload: {},
+              button_label: "📜 Ingest Project Script",
+            },
+          ],
+        },
+      ]);
     } catch (err) {
-      console.error("Failed to reset graph:", err);
+      console.error("Failed to clear graph:", err);
+      alert(`Clear failed: ${err.message}`);
     } finally {
       setIsResetting(false);
     }
+  };
+
+  const handleIngestProject = async (payload) => {
+    const res = await ingestProject(payload);
+
+    // Play celebration confetti
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.5 },
+    });
+
+    await loadGraph();
+    await loadHealth();
+
+    const projId = res.project_id;
+    if (projId) {
+      setHighlightedNodeIds([projId]);
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "agent",
+        text: `🎉 **Successfully Ingested Project Ecosystem via Script!**\n\n- **Project:** **${payload.project_name}** (\`${payload.priority || "P0"}\`)\n- **Budget:** ${payload.budget || "N/A"} (${payload.profit_margin || "N/A"})\n- **Team:** ${payload.team_name || "N/A"} (${payload.team_members?.length || 0} members)\n- **Services:** ${payload.services?.map((s) => s.name).join(", ") || "None"}\n- **Created Elements:** **${res.nodes_created} nodes**, **${res.edges_created} edges**\n\nYou can now inspect the graph canvas or ask questions about **${payload.project_name}**!`,
+        toolCalled: `ingest_project(${projId})`,
+        latency: 22,
+        actionCards: [
+          {
+            title: `Query ${payload.project_name}`,
+            action_type: "QUERY_ENTITY",
+            payload: { title: payload.project_name },
+            button_label: `🔍 Ask About ${payload.project_name}`,
+          },
+        ],
+      },
+    ]);
   };
 
   return (
@@ -206,9 +289,10 @@ export default function App() {
         onSelectScenario={handleSelectScenario}
         activeScenario={activeScenario}
         health={health}
-        onResetGraph={handleResetGraph}
+        onClearData={handleClearData}
         isResetting={isResetting}
         onOpenAddEntity={() => setIsAddEntityOpen(true)}
+        onOpenScriptModal={() => setIsScriptModalOpen(true)}
       />
 
       <main className="main-workspace">
@@ -225,6 +309,8 @@ export default function App() {
             onSelectNode={(node) => setSelectedNode(node)}
             highlightedNodeIds={highlightedNodeIds}
             activeSimulation={activeSimulation}
+            onOpenAddEntity={() => setIsAddEntityOpen(true)}
+            onOpenScriptModal={() => setIsScriptModalOpen(true)}
           />
 
           {activeSimulation && (
@@ -252,6 +338,14 @@ export default function App() {
           onClose={() => setIsAddEntityOpen(false)}
           existingNodes={graphData.nodes}
           onSubmit={handleCreateEntity}
+        />
+      )}
+
+      {isScriptModalOpen && (
+        <ProjectScriptModal
+          isOpen={isScriptModalOpen}
+          onClose={() => setIsScriptModalOpen(false)}
+          onIngest={handleIngestProject}
         />
       )}
 

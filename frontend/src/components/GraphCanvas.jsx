@@ -5,6 +5,9 @@ import {
   ZoomOut,
   Maximize2,
   RotateCcw,
+  Database,
+  Plus,
+  Code
 } from "lucide-react";
 
 const NODE_PALETTE = {
@@ -308,6 +311,8 @@ export default function GraphCanvas({
   onSelectNode,
   highlightedNodeIds = [],
   activeSimulation = null,
+  onOpenAddEntity,
+  onOpenScriptModal,
 }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
@@ -734,6 +739,40 @@ export default function GraphCanvas({
         className="cytoscape-container"
         ref={containerRef}
       />
+
+      {(!graphData?.nodes || graphData.nodes.length === 0) && (
+        <div className="canvas-empty-overlay">
+          <div className="empty-state-card">
+            <div className="empty-state-icon-glow">
+              <Database size={38} className="text-cyan" />
+            </div>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ffffff", marginBottom: "8px" }}>
+              Company Brain Ready
+            </h3>
+            <p style={{ fontSize: "0.86rem", color: "#94a3b8", maxWidth: "420px", margin: "0 auto 20px", lineHeight: "1.5" }}>
+              All existing data is cleared. Input your company context using either method:
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={onOpenAddEntity}
+                className="btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 18px", fontSize: "0.86rem" }}
+              >
+                <Plus size={16} />
+                <span>1. Add Entity (One-by-One)</span>
+              </button>
+              <button
+                onClick={onOpenScriptModal}
+                className="btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 18px", fontSize: "0.86rem", borderColor: "rgba(6, 182, 212, 0.4)", color: "#22d3ee" }}
+              >
+                <Code size={16} />
+                <span>2. Ingest Project Script</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="canvas-controls-glass">
         <button

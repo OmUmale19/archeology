@@ -26,9 +26,9 @@ def test_vercel_api_health_direct(client):
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "healthy"
-    assert data["total_nodes"] > 0
 
-def test_vercel_graph_overview(client):
+def test_vercel_graph_overview_after_seed(client):
+    client.post("/api/seed")
     res = client.get("/api/graph/overview")
     assert res.status_code == 200
     data = res.json()

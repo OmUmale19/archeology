@@ -60,6 +60,16 @@ class FalkorDBAdapter:
         self._edge_data.clear()
         self._fallback_nx.clear()
 
+    def clear_all(self):
+        """Wipes all graph data in-memory and in FalkorDB if connected."""
+        self.clear()
+        if self.is_connected and self.graph:
+            try:
+                self.graph.query("MATCH (n) DETACH DELETE n")
+                logger.info("Successfully wiped all nodes and edges from FalkorDB.")
+            except Exception as e:
+                logger.warning(f"Could not detach delete nodes in FalkorDB: {e}")
+
     def register_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any]):
         props = dict(properties)
         props["label"] = label
