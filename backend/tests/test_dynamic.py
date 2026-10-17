@@ -1,9 +1,11 @@
 import pytest
 from app.seed.seeder import seed_graph
 from app.agents.brain_agent import brain_agent
+from app.services.llm_service import gemini_service
 
 @pytest.fixture(autouse=True)
-def setup_graph():
+def setup_graph(monkeypatch):
+    monkeypatch.setattr(gemini_service, "is_available", lambda: False)
     seed_graph()
 
 def test_dynamic_query_uber():

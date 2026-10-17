@@ -9,8 +9,9 @@ logger = logging.getLogger(__name__)
 
 class FalkorDBAdapter:
     """
-    Hexagonal Adapter for FalkorDB with automatic connection verification
-    and high-fidelity in-memory graph fallback.
+    Hexagonal Adapter for FalkorDB with multi-tenant graph support,
+    automatic connection verification, and high-fidelity in-memory graph fallback.
+    Each company or user can maintain their own isolated graph database.
     """
     def __init__(self):
         self.is_connected = False
@@ -18,12 +19,39 @@ class FalkorDBAdapter:
         self.graph = None
         self.graph_name = settings.FALKORDB_GRAPH_NAME
         
-        # In-memory topological graph for fallback and algorithm verification
-        self._fallback_nx = nx.MultiDiGraph()
-        self._node_data: Dict[str, Dict[str, Any]] = {}
-        self._edge_data: List[Dict[str, Any]] = []
+        # Per-tenant stores: { "tenant_id": { "node_data": {}, "edge_data": [], "nx": nx.MultiDiGraph() } }
+        self._tenants: Dict[str, Dict[str, Any]] = {}
         
         self._connect()
+
+    def _sanitize_tenant(self, tenant_id: Optional[str]) -> str:
+        if not tenant_id:
+            return "default"
+        clean = "".join(c if c.isalnum() else "_" for c in str(tenant_id).lower()).strip("_")
+        return clean or "default"
+
+    def _get_tenant_store(self, tenant_id: Optional[str] = "default") -> Dict[str, Any]:
+        tid = self._sanitize_tenant(tenant_id)
+        if tid not in self._tenants:
+            self._tenants[tid] = {
+                "node_data": {},
+                "edge_data": [],
+                "nx": nx.MultiDiGraph()
+            }
+        return self._tenants[tid]
+
+    # Backward-compatibility properties for default workspace
+    @property
+    def _node_data(self) -> Dict[str, Dict[str, Any]]:
+        return self._get_tenant_store("default")["node_data"]
+
+    @property
+    def _edge_data(self) -> List[Dict[str, Any]]:
+        return self._get_tenant_store("default")["edge_data"]
+
+    @property
+    def _fallback_nx(self) -> nx.MultiDiGraph:
+        return self._get_tenant_store("default")["nx"]
 
     def _connect(self):
         try:
@@ -42,7 +70,7 @@ class FalkorDBAdapter:
                     connect_kwargs["ssl"] = True
                 self.client = FalkorDB(**connect_kwargs)
 
-            # Try a lightweight ping
+            # Select default graph and verify connection
             self.graph = self.client.select_graph(self.graph_name)
             self.graph.query("RETURN 1")
             self.is_connected = True
@@ -53,36 +81,50 @@ class FalkorDBAdapter:
             endpoint_repr = settings.FALKORDB_URL or f"{settings.FALKORDB_HOST}:{settings.FALKORDB_PORT}"
             logger.warning(f"FalkorDB not reachable at {endpoint_repr} ({e}). Using in-memory graph engine.")
 
-    def query(self, cypher: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        """Run a Cypher query on FalkorDB if connected, or gracefully handle."""
-        if self.is_connected and self.graph:
+    def get_graph(self, tenant_id: Optional[str] = "default"):
+        """Returns FalkorDB Graph object scoped to the specific tenant / company."""
+        if self.is_connected and self.client:
+            tid = self._sanitize_tenant(tenant_id)
+            if tid in ("default", "archaeologist"):
+                graph_name = self.graph_name
+            else:
+                graph_name = f"{self.graph_name}_{tid}"
+            return self.client.select_graph(graph_name)
+        return None
+
+    def query(self, cypher: str, params: Optional[Dict[str, Any]] = None, tenant_id: Optional[str] = "default") -> Any:
+        """Run a Cypher query on the tenant's FalkorDB graph if connected, or gracefully handle."""
+        target_graph = self.get_graph(tenant_id) or self.graph
+        if self.is_connected and target_graph:
             try:
-                return self.graph.query(cypher, params or {})
+                return target_graph.query(cypher, params or {})
             except Exception as e:
-                logger.error(f"FalkorDB Cypher error: {e}")
+                logger.error(f"FalkorDB Cypher error on tenant '{tenant_id}': {e}")
                 raise e
         else:
-            logger.debug(f"Executing Cypher via fallback: {cypher}")
+            logger.debug(f"Executing Cypher via fallback for tenant '{tenant_id}': {cypher}")
             return None
 
     # --- Topological In-Memory Mirror (Ensures 100% reliability) ---
 
-    def clear(self):
-        self._node_data.clear()
-        self._edge_data.clear()
-        self._fallback_nx.clear()
+    def clear(self, tenant_id: Optional[str] = "default"):
+        store = self._get_tenant_store(tenant_id)
+        store["node_data"].clear()
+        store["edge_data"].clear()
+        store["nx"].clear()
 
-    def clear_all(self):
-        """Wipes all graph data in-memory and in FalkorDB if connected."""
-        self.clear()
-        if self.is_connected and self.graph:
+    def clear_all(self, tenant_id: Optional[str] = "default"):
+        """Wipes all graph data for the specific tenant in-memory and in FalkorDB if connected."""
+        self.clear(tenant_id)
+        target_graph = self.get_graph(tenant_id)
+        if self.is_connected and target_graph:
             try:
-                self.graph.query("MATCH (n) DETACH DELETE n")
-                logger.info("Successfully wiped all nodes and edges from FalkorDB.")
+                target_graph.query("MATCH (n) DETACH DELETE n")
+                logger.info(f"Successfully wiped all nodes and edges from FalkorDB for tenant '{tenant_id}'.")
             except Exception as e:
-                logger.warning(f"Could not detach delete nodes in FalkorDB: {e}")
+                logger.warning(f"Could not detach delete nodes in FalkorDB for tenant '{tenant_id}': {e}")
 
-    def register_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any]):
+    def register_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any], tenant_id: Optional[str] = "default"):
         props = dict(properties)
         props["label"] = label
         if "title" not in props:
@@ -124,16 +166,16 @@ class FalkorDBAdapter:
             else:
                 props["node_size"] = 24
 
-        self._node_data[node_id] = {
+        store = self._get_tenant_store(tenant_id)
+        store["node_data"][node_id] = {
             "id": node_id,
             "label": label,
             "title": node_title,
             "properties": props
         }
-        self._fallback_nx.add_node(node_id, **props)
+        store["nx"].add_node(node_id, **props)
 
-
-    def register_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None):
+    def register_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None, tenant_id: Optional[str] = "default"):
         props = properties or {}
         edge_record = {
             "id": f"{source_id}_{rel_type}_{target_id}",
@@ -142,42 +184,46 @@ class FalkorDBAdapter:
             "label": rel_type,
             "properties": props
         }
-        self._edge_data.append(edge_record)
-        self._fallback_nx.add_edge(source_id, target_id, key=rel_type, label=rel_type, **props)
+        store = self._get_tenant_store(tenant_id)
+        store["edge_data"].append(edge_record)
+        store["nx"].add_edge(source_id, target_id, key=rel_type, label=rel_type, **props)
 
-    def add_custom_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any]) -> Dict[str, Any]:
-        """Add a dynamic custom node into in-memory graph and FalkorDB if connected."""
+    def add_custom_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any], tenant_id: Optional[str] = "default") -> Dict[str, Any]:
+        """Add a dynamic custom node into in-memory graph and FalkorDB for the specific tenant."""
         props = dict(properties)
         props["id"] = node_id
         props["title"] = title
-        self.register_node(node_id, label, title, props)
+        self.register_node(node_id, label, title, props, tenant_id=tenant_id)
         
-        if self.is_connected and self.graph:
+        target_graph = self.get_graph(tenant_id)
+        if self.is_connected and target_graph:
             try:
                 safe_label = "".join(c for c in label if c.isalnum() or c == "_") or "Entity"
                 cypher = f"MERGE (n:{safe_label} {{id: $id}}) SET n.title = $title, n += $props"
-                self.query(cypher, {"id": node_id, "title": title, "props": props})
+                self.query(cypher, {"id": node_id, "title": title, "props": props}, tenant_id=tenant_id)
             except Exception as e:
-                logger.warning(f"Could not persist custom node to FalkorDB: {e}")
+                logger.warning(f"Could not persist custom node to FalkorDB for tenant '{tenant_id}': {e}")
                 
-        return self._node_data[node_id]
+        return self._get_tenant_store(tenant_id)["node_data"][node_id]
 
-    def add_custom_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Add a dynamic relationship into in-memory graph and FalkorDB if connected."""
+    def add_custom_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None, tenant_id: Optional[str] = "default") -> Dict[str, Any]:
+        """Add a dynamic relationship into in-memory graph and FalkorDB for the specific tenant."""
         props = properties or {}
-        self.register_edge(source_id, target_id, rel_type, props)
+        self.register_edge(source_id, target_id, rel_type, props, tenant_id=tenant_id)
         
-        if self.is_connected and self.graph:
+        target_graph = self.get_graph(tenant_id)
+        if self.is_connected and target_graph:
             try:
                 safe_rel = "".join(c for c in rel_type if c.isalnum() or c == "_") or "RELATES_TO"
                 cypher = f"MATCH (s {{id: $source_id}}), (t {{id: $target_id}}) MERGE (s)-[r:{safe_rel}]->(t) SET r += $props"
-                self.query(cypher, {"source_id": source_id, "target_id": target_id, "props": props})
+                self.query(cypher, {"source_id": source_id, "target_id": target_id, "props": props}, tenant_id=tenant_id)
             except Exception as e:
-                logger.warning(f"Could not persist custom edge to FalkorDB: {e}")
+                logger.warning(f"Could not persist custom edge to FalkorDB for tenant '{tenant_id}': {e}")
                 
-        return self._edge_data[-1]
+        return self._get_tenant_store(tenant_id)["edge_data"][-1]
 
-    def get_full_graph_payload(self) -> GraphPayload:
+    def get_full_graph_payload(self, tenant_id: Optional[str] = "default") -> GraphPayload:
+        store = self._get_tenant_store(tenant_id)
         nodes = [
             GraphNode(
                 id=n_id,
@@ -186,7 +232,7 @@ class FalkorDBAdapter:
                 properties=data["properties"],
                 node_size=data["properties"].get("node_size", 34)
             )
-            for n_id, data in self._node_data.items()
+            for n_id, data in store["node_data"].items()
         ]
         edges = [
             GraphEdge(
@@ -196,31 +242,31 @@ class FalkorDBAdapter:
                 label=e["label"],
                 properties=e["properties"]
             )
-            for e in self._edge_data
+            for e in store["edge_data"]
         ]
         return GraphPayload(nodes=nodes, edges=edges)
 
-    def extract_subgraph(self, node_ids: List[str], max_hops: int = 1) -> GraphPayload:
-        """Extract a k-hop localized subgraph around the target node IDs."""
+    def extract_subgraph(self, node_ids: List[str], max_hops: int = 1, tenant_id: Optional[str] = "default") -> GraphPayload:
+        """Extract a k-hop localized subgraph around the target node IDs for the given tenant."""
+        store = self._get_tenant_store(tenant_id)
         all_nodes = set(node_ids)
         for nid in node_ids:
-            if nid in self._fallback_nx:
-                # Add predecessors and successors
-                preds = list(self._fallback_nx.predecessors(nid))
-                succs = list(self._fallback_nx.successors(nid))
+            if nid in store["nx"]:
+                preds = list(store["nx"].predecessors(nid))
+                succs = list(store["nx"].successors(nid))
                 all_nodes.update(preds)
                 all_nodes.update(succs)
         
         selected_nodes = [
             GraphNode(
                 id=n_id,
-                label=self._node_data[n_id]["label"],
-                title=self._node_data[n_id]["title"],
-                properties=self._node_data[n_id]["properties"],
+                label=store["node_data"][n_id]["label"],
+                title=store["node_data"][n_id]["title"],
+                properties=store["node_data"][n_id]["properties"],
                 highlighted=(n_id in node_ids),
-                node_size=self._node_data[n_id]["properties"].get("node_size", 34)
+                node_size=store["node_data"][n_id]["properties"].get("node_size", 34)
             )
-            for n_id in all_nodes if n_id in self._node_data
+            for n_id in all_nodes if n_id in store["node_data"]
         ]
         
         selected_edges = [
@@ -232,33 +278,34 @@ class FalkorDBAdapter:
                 properties=e["properties"],
                 highlighted=(e["source"] in node_ids or e["target"] in node_ids)
             )
-            for e in self._edge_data if e["source"] in all_nodes and e["target"] in all_nodes
+            for e in store["edge_data"] if e["source"] in all_nodes and e["target"] in all_nodes
         ]
         return GraphPayload(nodes=selected_nodes, edges=selected_edges)
 
-    def calculate_pagerank(self) -> Dict[str, float]:
-        """Compute PageRank scores over the entire topology."""
+    def calculate_pagerank(self, tenant_id: Optional[str] = "default") -> Dict[str, float]:
+        """Compute PageRank scores over the tenant's topology."""
+        store = self._get_tenant_store(tenant_id)
         try:
-            return nx.pagerank(self._fallback_nx, alpha=0.85)
+            return nx.pagerank(store["nx"], alpha=0.85)
         except Exception:
-            return {n: 1.0 / max(1, len(self._node_data)) for n in self._node_data}
+            return {n: 1.0 / max(1, len(store["node_data"])) for n in store["node_data"]}
 
-    def calculate_betweenness_centrality(self) -> Dict[str, float]:
+    def calculate_betweenness_centrality(self, tenant_id: Optional[str] = "default") -> Dict[str, float]:
         """Compute Betweenness Centrality for bottleneck/bus factor detection."""
+        store = self._get_tenant_store(tenant_id)
         try:
-            return nx.betweenness_centrality(self._fallback_nx)
+            return nx.betweenness_centrality(store["nx"])
         except Exception:
-            return {n: 0.0 for n in self._node_data}
+            return {n: 0.0 for n in store["node_data"]}
 
-    def find_shortest_path(self, source_id: str, target_id: str) -> Optional[List[str]]:
-        """Find the shortest causal path between two entities."""
+    def find_shortest_path(self, source_id: str, target_id: str, tenant_id: Optional[str] = "default") -> Optional[List[str]]:
+        """Find the shortest causal path between two entities within a tenant."""
+        store = self._get_tenant_store(tenant_id)
         try:
-            # Directed shortest path
-            return nx.shortest_path(self._fallback_nx, source=source_id, target=target_id)
+            return nx.shortest_path(store["nx"], source=source_id, target=target_id)
         except Exception:
             try:
-                # Try undirected if directed path doesn't exist
-                undirected = self._fallback_nx.to_undirected()
+                undirected = store["nx"].to_undirected()
                 return nx.shortest_path(undirected, source=source_id, target=target_id)
             except Exception:
                 return None

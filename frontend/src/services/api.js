@@ -1,9 +1,41 @@
 const rawApiBase = import.meta.env.VITE_API_BASE || "/api";
 const API_BASE = rawApiBase.replace(/\/+$/, "");
 
+let currentTenant = {
+  id: "default",
+  name: "Default Workspace",
+  type: "workspace",
+  token: null,
+};
+
+export function setTenantContext(tenant) {
+  if (!tenant) return;
+  currentTenant = {
+    ...currentTenant,
+    ...tenant,
+    id: tenant.id || "default",
+  };
+}
+
+export function getTenantContext() {
+  return currentTenant;
+}
+
+async function request(endpoint, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Tenant-Id": currentTenant.id || "default",
+    "X-Tenant-Name": currentTenant.name || "Default Workspace",
+    "X-Tenant-Type": currentTenant.type || "workspace",
+    ...(currentTenant.token ? { Authorization: `Bearer ${currentTenant.token}` } : {}),
+    ...(options.headers || {}),
+  };
+  return fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+}
+
 export async function fetchHealth() {
   try {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await request("/health");
     return await res.json();
   } catch (err) {
     console.error("Health check error:", err);
@@ -13,7 +45,7 @@ export async function fetchHealth() {
 
 export async function fetchGraphOverview() {
   try {
-    const res = await fetch(`${API_BASE}/graph/overview`);
+    const res = await request("/graph/overview");
     return await res.json();
   } catch (err) {
     console.error("Failed to fetch graph overview:", err);
@@ -22,9 +54,8 @@ export async function fetchGraphOverview() {
 }
 
 export async function sendChatMessage(message) {
-  const res = await fetch(`${API_BASE}/chat`, {
+  const res = await request("/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),
   });
   if (!res.ok) {
@@ -34,9 +65,8 @@ export async function sendChatMessage(message) {
 }
 
 export async function triggerAction(actionType, parameters) {
-  const res = await fetch(`${API_BASE}/actions/trigger`, {
+  const res = await request("/actions/trigger", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       action_type: actionType,
       parameters: parameters || {},
@@ -49,12 +79,12 @@ export async function triggerAction(actionType, parameters) {
 }
 
 export async function reseedGraph() {
-  const res = await fetch(`${API_BASE}/seed`, { method: "POST" });
+  const res = await request("/seed", { method: "POST" });
   return await res.json();
 }
 
 export async function clearGraphData() {
-  const res = await fetch(`${API_BASE}/graph/clear`, { method: "POST" });
+  const res = await request("/graph/clear", { method: "POST" });
   if (!res.ok) {
     throw new Error(`Clear graph failed: ${res.statusText}`);
   }
@@ -62,9 +92,8 @@ export async function clearGraphData() {
 }
 
 export async function ingestProject(payload) {
-  const res = await fetch(`${API_BASE}/projects/ingest`, {
+  const res = await request("/projects/ingest", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -75,9 +104,8 @@ export async function ingestProject(payload) {
 }
 
 export async function createGraphNode(payload) {
-  const res = await fetch(`${API_BASE}/graph/nodes`, {
+  const res = await request("/graph/nodes", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -88,9 +116,8 @@ export async function createGraphNode(payload) {
 }
 
 export async function simulateBlastRadius(nodeId) {
-  const res = await fetch(`${API_BASE}/simulation/blast-radius`, {
+  const res = await request("/simulation/blast-radius", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ node_id: nodeId }),
   });
   if (!res.ok) {
@@ -99,5 +126,3 @@ export async function simulateBlastRadius(nodeId) {
   }
   return await res.json();
 }
-
-

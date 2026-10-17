@@ -23,18 +23,19 @@ class GeminiService:
         """Returns True if a valid Gemini API key is configured."""
         return bool(self.api_key and len(self.api_key) > 10)
 
-    def build_graph_context(self) -> str:
+    def build_graph_context(self, tenant_id: Optional[str] = "default") -> str:
         """
         Extracts all verified nodes and edges from FalkorDB / graph adapter
-        into a clean markdown knowledge context for Gemini reasoning.
+        for the given tenant into a clean markdown knowledge context for Gemini reasoning.
         """
-        nodes = db_adapter._node_data
-        edges = db_adapter._edge_data
+        store = db_adapter._get_tenant_store(tenant_id)
+        nodes = store["node_data"]
+        edges = store["edge_data"]
 
         if not nodes:
             return "The graph currently contains 0 nodes. It is completely empty."
 
-        lines = [f"### Current FalkorDB Knowledge Graph ({len(nodes)} nodes, {len(edges)} relationships):\n"]
+        lines = [f"### Current FalkorDB Knowledge Graph ({len(nodes)} nodes, {len(edges)} relationships) for Workspace '{tenant_id}':\n"]
 
         # Group by label
         by_label: Dict[str, List[Dict[str, Any]]] = {}
@@ -58,23 +59,24 @@ class GeminiService:
 
         return "\n".join(lines)
 
-    def query_graph(self, question: str) -> Optional[Dict[str, Any]]:
+    def query_graph(self, question: str, tenant_id: Optional[str] = "default") -> Optional[Dict[str, Any]]:
         """
-        Submits the user's question along with the current graph context to Google Gemini.
+        Submits the user's question along with the tenant's current graph context to Google Gemini.
         Returns a dictionary with the synthesized markdown answer, highlighted graph payload,
         and latency information.
         """
         # Re-check key in case user updated it dynamically at runtime
-        api_key = settings.GEMINI_API_KEY.strip()
+        api_key = getattr(self, "api_key", "") or settings.GEMINI_API_KEY.strip()
         if not (api_key and len(api_key) > 10):
             return None
 
-        graph_context = self.build_graph_context()
+        store = db_adapter._get_tenant_store(tenant_id)
+        graph_context = self.build_graph_context(tenant_id=tenant_id)
 
         system_instruction = (
             "You are Archaeologist AI, an elite enterprise Company Brain intelligence system. "
             "Your objective is to answer user queries with extreme accuracy, grounded strictly "
-            "in the verified knowledge graph stored in FalkorDB.\n\n"
+            f"in the verified knowledge graph stored in FalkorDB for this company workspace ('{tenant_id}').\n\n"
             "Rules:\n"
             "1. Answer based on the nodes, edges, properties, decisions, teams, and services provided.\n"
             "2. Never hallucinate entities or relationships that are not in the graph context.\n"
@@ -139,12 +141,12 @@ class GeminiService:
                     logger.debug(f"Failed to parse node IDs JSON from Gemini: {e}")
 
             # Highlight relevant nodes on canvas
-            valid_ids = [nid for nid in relevant_ids if nid in db_adapter._node_data]
+            valid_ids = [nid for nid in relevant_ids if nid in store["node_data"]]
             if valid_ids:
-                subgraph = db_adapter.extract_subgraph(valid_ids, max_hops=1)
+                subgraph = db_adapter.extract_subgraph(valid_ids, max_hops=1, tenant_id=tenant_id)
                 graph_dict = subgraph.model_dump()
             else:
-                graph_dict = db_adapter.get_full_graph_payload().model_dump()
+                graph_dict = db_adapter.get_full_graph_payload(tenant_id=tenant_id).model_dump()
 
             return {
                 "answer": clean_answer,

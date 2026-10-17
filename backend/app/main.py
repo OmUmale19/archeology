@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
@@ -23,6 +23,10 @@ from contextlib import asynccontextmanager
 
 def slugify(text: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in text.lower()).strip("_")
+
+def get_tenant_id(x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id")) -> str:
+    """Extracts isolated tenant / company ID from request header, defaulting to 'default' workspace."""
+    return (x_tenant_id or "default").strip()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,26 +67,40 @@ def api_root():
     return root()
 
 @app.get("/api/health")
-def health_check():
+def health_check(tenant_id: str = Depends(get_tenant_id)):
+    store = db_adapter._get_tenant_store(tenant_id)
     return {
         "status": "healthy",
         "falkordb_connected": db_adapter.is_connected,
-        "total_nodes": len(db_adapter._node_data),
-        "total_edges": len(db_adapter._edge_data)
+        "tenant_id": tenant_id,
+        "total_nodes": len(store["node_data"]),
+        "total_edges": len(store["edge_data"])
     }
 
 @app.get("/api/graph/overview", response_model=GraphPayload)
-def get_graph_overview():
-    """Returns the full topological graph for initial canvas visualization."""
-    return db_adapter.get_full_graph_payload()
+def get_graph_overview(tenant_id: str = Depends(get_tenant_id)):
+    """Returns the full topological graph for initial canvas visualization for the active tenant."""
+    return db_adapter.get_full_graph_payload(tenant_id=tenant_id)
+
+@app.get("/api/tenants/current")
+def get_current_tenant_info(tenant_id: str = Depends(get_tenant_id)):
+    """Returns current active tenant metadata and graph size."""
+    store = db_adapter._get_tenant_store(tenant_id)
+    return {
+        "tenant_id": tenant_id,
+        "nodes_count": len(store["node_data"]),
+        "edges_count": len(store["edge_data"]),
+        "falkordb_connected": db_adapter.is_connected
+    }
 
 @app.post("/api/graph/nodes")
-def create_graph_node(req: CreateNodeRequest):
+def create_graph_node(req: CreateNodeRequest, tenant_id: str = Depends(get_tenant_id)):
     """
-    Creates a new entity node and optional relationship in the company knowledge graph.
+    Creates a new entity node and optional relationship in the tenant's knowledge graph.
     Instantly available in graph canvas and agent traversal.
     """
     try:
+        store = db_adapter._get_tenant_store(tenant_id)
         # Generate clean ID if not provided
         if not req.id or not req.id.strip():
             slug = "".join(c if c.isalnum() else "_" for c in req.title.lower()).strip("_")
@@ -90,36 +108,38 @@ def create_graph_node(req: CreateNodeRequest):
         else:
             node_id = req.id.strip()
 
-        # Check if node already exists
-        if node_id in db_adapter._node_data:
-            raise HTTPException(status_code=400, detail=f"A node with ID '{node_id}' already exists.")
+        # Check if node already exists in this tenant
+        if node_id in store["node_data"]:
+            raise HTTPException(status_code=400, detail=f"A node with ID '{node_id}' already exists in workspace '{tenant_id}'.")
 
         created_node = db_adapter.add_custom_node(
             node_id=node_id,
             label=req.label,
             title=req.title,
-            properties=req.properties
+            properties=req.properties,
+            tenant_id=tenant_id
         )
 
         created_edge = None
         if req.connection and req.connection.target_node_id:
             target_id = req.connection.target_node_id
-            if target_id not in db_adapter._node_data:
-                raise HTTPException(status_code=400, detail=f"Target connection node '{target_id}' not found.")
+            if target_id not in store["node_data"]:
+                raise HTTPException(status_code=400, detail=f"Target connection node '{target_id}' not found in workspace '{tenant_id}'.")
             
             rel = req.connection.relationship_type.upper().replace(" ", "_")
             if req.connection.direction == "INCOMING":
-                created_edge = db_adapter.add_custom_edge(target_id, node_id, rel)
+                created_edge = db_adapter.add_custom_edge(target_id, node_id, rel, tenant_id=tenant_id)
             else:
-                created_edge = db_adapter.add_custom_edge(node_id, target_id, rel)
+                created_edge = db_adapter.add_custom_edge(node_id, target_id, rel, tenant_id=tenant_id)
 
         return {
             "status": "success",
             "message": f"Successfully created {req.label} '{req.title}'",
             "node": created_node,
             "edge": created_edge,
-            "total_nodes": len(db_adapter._node_data),
-            "total_edges": len(db_adapter._edge_data)
+            "tenant_id": tenant_id,
+            "total_nodes": len(store["node_data"]),
+            "total_edges": len(store["edge_data"])
         }
     except HTTPException:
         raise
@@ -141,21 +161,20 @@ def simulate_blast_radius_endpoint(req: SimulationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
-
-def chat_endpoint(req: ChatRequest):
+def chat_endpoint(req: ChatRequest, tenant_id: str = Depends(get_tenant_id)):
     """
     Main conversational agent loop.
     Traverses FalkorDB graph, returns factual answer + interactive subgraph + actionable buttons.
     """
     try:
-        response = brain_agent.process_message(req.message)
+        response = brain_agent.process_message(req.message, tenant_id=tenant_id)
         return response
     except Exception as e:
-        logger.error(f"Chat processing error: {e}")
+        logger.error(f"Chat processing error on tenant '{tenant_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/actions/trigger")
-def trigger_action(req: ActionTriggerRequest):
+def trigger_action(req: ActionTriggerRequest, tenant_id: str = Depends(get_tenant_id)):
     """Execute real-world engineering actions (ADR generation, Jira handoffs)."""
     try:
         if req.action_type == "GENERATE_ADR":
@@ -168,7 +187,7 @@ def trigger_action(req: ActionTriggerRequest):
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported action type: {req.action_type}")
     except Exception as e:
-        logger.error(f"Action execution error: {e}")
+        logger.error(f"Action execution error on tenant '{tenant_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- MCP (Model Context Protocol) Standard Endpoints ---
@@ -188,31 +207,34 @@ def mcp_call_tool(req: MCPCallRequest):
     return mcp_server.handle_call_tool(req.name, req.arguments)
 
 @app.post("/api/seed")
-def trigger_seed():
+def trigger_seed(tenant_id: str = Depends(get_tenant_id)):
     """Manually re-trigger enterprise seed graph loading (demo dataset)."""
     success = seed_graph()
-    return {"seeded": success, "nodes": len(db_adapter._node_data), "edges": len(db_adapter._edge_data)}
+    store = db_adapter._get_tenant_store(tenant_id)
+    return {"seeded": success, "tenant_id": tenant_id, "nodes": len(store["node_data"]), "edges": len(store["edge_data"])}
 
 @app.post("/api/graph/clear")
 @app.delete("/api/graph/clear")
 @app.delete("/api/graph/data")
-def clear_all_graph_data():
-    """Completely deletes all nodes and edges from the knowledge graph."""
-    db_adapter.clear_all()
+def clear_all_graph_data(tenant_id: str = Depends(get_tenant_id)):
+    """Completely deletes all nodes and edges from the tenant's knowledge graph."""
+    db_adapter.clear_all(tenant_id=tenant_id)
     return {
         "status": "success",
-        "message": "All graph data has been completely deleted.",
+        "message": f"All graph data for workspace '{tenant_id}' has been completely deleted.",
+        "tenant_id": tenant_id,
         "total_nodes": 0,
         "total_edges": 0
     }
 
 @app.post("/api/projects/ingest")
-def ingest_project_endpoint(req: IngestProjectRequest):
+def ingest_project_endpoint(req: IngestProjectRequest, tenant_id: str = Depends(get_tenant_id)):
     """
     Ingests an entire project ecosystem (Project, Priority, Team, Members, Services, Decisions, Tickets)
-    into FalkorDB and in-memory knowledge graph in a single atomic batch.
+    into FalkorDB and in-memory knowledge graph for the specific tenant in a single atomic batch.
     """
     try:
+        store = db_adapter._get_tenant_store(tenant_id)
         created_nodes = []
         created_edges = []
         
@@ -228,7 +250,7 @@ def ingest_project_endpoint(req: IngestProjectRequest):
             "description": req.description or f"Strategic project: {req.project_name}",
             "node_size": 94 if "p0" in req.priority.lower() or "critical" in req.priority.lower() else 80
         }
-        proj_node = db_adapter.add_custom_node(project_id, "Project", req.project_name, proj_props)
+        proj_node = db_adapter.add_custom_node(project_id, "Project", req.project_name, proj_props, tenant_id=tenant_id)
         created_nodes.append(proj_node)
 
         # 2. Team Node
@@ -241,9 +263,9 @@ def ingest_project_endpoint(req: IngestProjectRequest):
             "health": "EXCELLENT",
             "node_size": 65
         }
-        team_node = db_adapter.add_custom_node(team_id, "Team", team_name, team_props)
+        team_node = db_adapter.add_custom_node(team_id, "Team", team_name, team_props, tenant_id=tenant_id)
         created_nodes.append(team_node)
-        created_edges.append(db_adapter.add_custom_edge(team_id, project_id, "DELIVERS"))
+        created_edges.append(db_adapter.add_custom_edge(team_id, project_id, "DELIVERS", tenant_id=tenant_id))
 
         # 3. Team Members
         for m in req.team_members:
@@ -261,12 +283,12 @@ def ingest_project_endpoint(req: IngestProjectRequest):
                 "is_lead": m.is_lead,
                 "node_size": 58 if m.is_lead else 42
             }
-            mem_node = db_adapter.add_custom_node(mem_id, "Person", m.name, mem_props)
+            mem_node = db_adapter.add_custom_node(mem_id, "Person", m.name, mem_props, tenant_id=tenant_id)
             created_nodes.append(mem_node)
-            created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "MEMBER_OF"))
-            created_edges.append(db_adapter.add_custom_edge(mem_id, project_id, "CONTRIBUTES_TO"))
+            created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "MEMBER_OF", tenant_id=tenant_id))
+            created_edges.append(db_adapter.add_custom_edge(mem_id, project_id, "CONTRIBUTES_TO", tenant_id=tenant_id))
             if m.is_lead:
-                created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "LEADS"))
+                created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "LEADS", tenant_id=tenant_id))
 
         # 4. Services
         for s in req.services:
@@ -279,10 +301,10 @@ def ingest_project_endpoint(req: IngestProjectRequest):
                 "repo_url": s.repo_url or f"github.com/company/{svc_slug}",
                 "node_size": 46
             }
-            svc_node = db_adapter.add_custom_node(svc_id, "Service", s.name, svc_props)
+            svc_node = db_adapter.add_custom_node(svc_id, "Service", s.name, svc_props, tenant_id=tenant_id)
             created_nodes.append(svc_node)
-            created_edges.append(db_adapter.add_custom_edge(project_id, svc_id, "POWERED_BY"))
-            created_edges.append(db_adapter.add_custom_edge(team_id, svc_id, "MAINTAINS"))
+            created_edges.append(db_adapter.add_custom_edge(project_id, svc_id, "POWERED_BY", tenant_id=tenant_id))
+            created_edges.append(db_adapter.add_custom_edge(team_id, svc_id, "MAINTAINS", tenant_id=tenant_id))
 
         # 5. Decisions
         for d in req.decisions:
@@ -294,9 +316,9 @@ def ingest_project_endpoint(req: IngestProjectRequest):
                 "rationale": d.rationale,
                 "node_size": 32
             }
-            dec_node = db_adapter.add_custom_node(dec_id, "Decision", d.title, dec_props)
+            dec_node = db_adapter.add_custom_node(dec_id, "Decision", d.title, dec_props, tenant_id=tenant_id)
             created_nodes.append(dec_node)
-            created_edges.append(db_adapter.add_custom_edge(project_id, dec_id, "GOVERNED_BY"))
+            created_edges.append(db_adapter.add_custom_edge(project_id, dec_id, "GOVERNED_BY", tenant_id=tenant_id))
 
         # 6. Jira Tickets
         for t in req.tickets:
@@ -309,27 +331,28 @@ def ingest_project_endpoint(req: IngestProjectRequest):
                 "status": t.status,
                 "node_size": 30
             }
-            t_node = db_adapter.add_custom_node(t_id, "JiraTicket", f"{t.key}: {t.summary}", t_props)
+            t_node = db_adapter.add_custom_node(t_id, "JiraTicket", f"{t.key}: {t.summary}", t_props, tenant_id=tenant_id)
             created_nodes.append(t_node)
-            created_edges.append(db_adapter.add_custom_edge(t_id, project_id, "TRACKS"))
+            created_edges.append(db_adapter.add_custom_edge(t_id, project_id, "TRACKS", tenant_id=tenant_id))
             if t.assignee_handle:
                 clean_handle = t.assignee_handle if t.assignee_handle.startswith("@") else f"@{t.assignee_handle}"
-                for nid, ndata in db_adapter._node_data.items():
+                for nid, ndata in store["node_data"].items():
                     if ndata.get("properties", {}).get("handle") == clean_handle:
-                        created_edges.append(db_adapter.add_custom_edge(nid, t_id, "ASSIGNED_TO"))
+                        created_edges.append(db_adapter.add_custom_edge(nid, t_id, "ASSIGNED_TO", tenant_id=tenant_id))
                         break
 
         return {
             "status": "success",
-            "message": f"Successfully ingested project '{req.project_name}' ({req.priority}) with {len(req.team_members)} members and {len(req.services)} services.",
+            "message": f"Successfully ingested project '{req.project_name}' ({req.priority}) with {len(req.team_members)} members and {len(req.services)} services for workspace '{tenant_id}'.",
+            "tenant_id": tenant_id,
             "project_id": project_id,
             "nodes_created": len(created_nodes),
             "edges_created": len(created_edges),
-            "total_nodes": len(db_adapter._node_data),
-            "total_edges": len(db_adapter._edge_data),
-            "graph": db_adapter.get_full_graph_payload()
+            "total_nodes": len(store["node_data"]),
+            "total_edges": len(store["edge_data"]),
+            "graph": db_adapter.get_full_graph_payload(tenant_id=tenant_id)
         }
     except Exception as e:
-        logger.error(f"Error ingesting project: {e}")
+        logger.error(f"Error ingesting project for tenant '{tenant_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -13,6 +13,7 @@
     "vite": "^8.3.0"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.10",
     "@vitejs/plugin-react": "^6.1.2",
     "canvas-confetti": "^1.9.4",
     "cytoscape": "^3.34.3",

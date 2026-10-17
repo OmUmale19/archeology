@@ -1,5 +1,6 @@
 import React from "react";
 import { Activity, Database, Sparkles, RefreshCw, Layers, ShieldCheck, Plus, Briefcase, Code, Trash2 } from "lucide-react";
+import ClerkAuthBar from "./ClerkAuthBar";
 
 export default function Navbar({
   onSelectScenario,
@@ -8,7 +9,10 @@ export default function Navbar({
   onClearData,
   isResetting,
   onOpenAddEntity,
-  onOpenScriptModal
+  onOpenScriptModal,
+  isClerkConfigured,
+  onTenantChange,
+  currentTenant,
 }) {
   return (
     <header className="app-header">
@@ -66,6 +70,12 @@ export default function Navbar({
 
       {/* Status & Control Panel */}
       <div className="header-actions">
+        <ClerkAuthBar
+          isClerkConfigured={isClerkConfigured}
+          onTenantChange={onTenantChange}
+          currentTenant={currentTenant}
+        />
+
         <div className="status-capsule">
           <span className="status-ping"></span>
           <span className="status-label">
@@ -80,7 +90,7 @@ export default function Navbar({
         <button
           onClick={onClearData}
           disabled={isResetting}
-          title="Wipe & Clear All Graph Data"
+          title="Wipe & Clear All Graph Data for Active Workspace"
           className="reset-icon-btn"
           style={{ color: "#f87171" }}
         >

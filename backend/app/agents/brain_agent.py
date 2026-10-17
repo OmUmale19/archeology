@@ -16,18 +16,19 @@ class BrainAgent:
     and returns rich interactive graph payloads and action triggers.
     """
     
-    def search_graph_entities(self, query: str) -> Optional[Dict[str, Any]]:
+    def search_graph_entities(self, query: str, tenant_id: Optional[str] = "default") -> Optional[Dict[str, Any]]:
         """
         Dynamically searches the FalkorDB graph for entities matching the user's query
-        and builds a contextual multi-hop report with incoming and outgoing connections.
+        for the given tenant and builds a contextual multi-hop report.
         """
         q_lower = query.lower()
         words = [w for w in q_lower.replace("?", "").replace("!", "").replace(",", "").split() if len(w) > 2]
         if not words:
             return None
             
+        store = db_adapter._get_tenant_store(tenant_id)
         scored_nodes = []
-        for nid, data in db_adapter._node_data.items():
+        for nid, data in store["node_data"].items():
             score = 0
             title = data.get("title", "").lower()
             label = data.get("label", "").lower()
@@ -60,8 +61,8 @@ class BrainAgent:
         top_id = top_node["id"]
         
         # Traverse 1-hop neighborhood
-        incoming_edges = [e for e in db_adapter._edge_data if e["target"] == top_id]
-        outgoing_edges = [e for e in db_adapter._edge_data if e["source"] == top_id]
+        incoming_edges = [e for e in store["edge_data"] if e["target"] == top_id]
+        outgoing_edges = [e for e in store["edge_data"] if e["source"] == top_id]
         
         related_node_ids = {top_id}
         for e in incoming_edges:
@@ -131,7 +132,7 @@ class BrainAgent:
         if outgoing_edges:
             report_lines.append("\n#### Outgoing Relationships:")
             for e in outgoing_edges:
-                tgt_data = db_adapter._node_data.get(e["target"], {})
+                tgt_data = store["node_data"].get(e["target"], {})
                 tgt_title = tgt_data.get("title", e["target"])
                 tgt_label = tgt_data.get("label", "")
                 report_lines.append(f"- `[:{e['label']}]` ➔ **{tgt_title}** ({tgt_label})")
@@ -139,12 +140,12 @@ class BrainAgent:
         if incoming_edges:
             report_lines.append("\n#### Incoming Relationships:")
             for e in incoming_edges:
-                src_data = db_adapter._node_data.get(e["source"], {})
+                src_data = store["node_data"].get(e["source"], {})
                 src_title = src_data.get("title", e["source"])
                 src_label = src_data.get("label", "")
                 report_lines.append(f"- **{src_title}** ({src_label}) ➔ `[:{e['label']}]`")
                 
-        subgraph = db_adapter.extract_subgraph(list(related_node_ids), max_hops=1)
+        subgraph = db_adapter.extract_subgraph(list(related_node_ids), max_hops=1, tenant_id=tenant_id)
         
         return {
             "answer": "\n".join(report_lines),
@@ -153,14 +154,15 @@ class BrainAgent:
             "action_cards": []
         }
 
-    def process_message(self, message: str) -> Dict[str, Any]:
+    def process_message(self, message: str, tenant_id: Optional[str] = "default") -> Dict[str, Any]:
         start_time = time.perf_counter()
         msg_lower = message.lower()
         
-        logger.info(f"Agent received prompt: {message}")
+        logger.info(f"Agent received prompt for tenant '{tenant_id}': {message}")
         
-        # Check for empty graph state
-        if len(db_adapter._node_data) == 0:
+        store = db_adapter._get_tenant_store(tenant_id)
+        # Check for empty graph state in this tenant
+        if len(store["node_data"]) == 0:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
             return {
                 "answer": (
@@ -350,7 +352,7 @@ class BrainAgent:
         else:
             # Check if Gemini AI is available for natural language reasoning over FalkorDB
             if gemini_service.is_available():
-                gemini_res = gemini_service.query_graph(message)
+                gemini_res = gemini_service.query_graph(message, tenant_id=tenant_id)
                 if gemini_res:
                     elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
                     return {
@@ -362,7 +364,7 @@ class BrainAgent:
                     }
 
             # 2. Dynamic Graph Entity & Traversal Reasoning
-            dynamic_result = self.search_graph_entities(message)
+            dynamic_result = self.search_graph_entities(message, tenant_id=tenant_id)
             if dynamic_result:
                 tool_name = dynamic_result["tool_called"]
                 answer = dynamic_result["answer"]

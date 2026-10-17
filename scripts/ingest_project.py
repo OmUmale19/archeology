@@ -120,16 +120,16 @@ DEFAULT_PROJECT = {
     ]
 }
 
-def ingest_via_http(api_url: str, payload: dict, clear_first: bool = False):
-    """Sends ingestion payload to the FastAPI backend server over HTTP."""
+def ingest_via_http(api_url: str, payload: dict, clear_first: bool = False, tenant_id: str = "default"):
+    """Sends ingestion payload to the FastAPI backend server over HTTP for the specific tenant."""
     api_url = api_url.rstrip("/")
 
     if clear_first:
-        print(f"🗑️  Clearing existing graph data on {api_url}/api/graph/clear...")
+        print(f"🗑️  Clearing existing graph data for workspace '{tenant_id}' on {api_url}/api/graph/clear...")
         req = urllib.request.Request(
             f"{api_url}/api/graph/clear",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Tenant-Id": tenant_id},
             method="POST"
         )
         try:
@@ -139,13 +139,13 @@ def ingest_via_http(api_url: str, payload: dict, clear_first: bool = False):
             print(f"⚠️  Could not clear existing graph: {e}")
 
     endpoint = f"{api_url}/api/projects/ingest"
-    print(f"🚀 Ingesting Project '{payload['project_name']}' into {endpoint}...")
+    print(f"🚀 Ingesting Project '{payload['project_name']}' into workspace '{tenant_id}' at {endpoint}...")
     
     data_bytes = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         endpoint,
         data=data_bytes,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-Tenant-Id": tenant_id},
         method="POST"
     )
 
@@ -258,13 +258,15 @@ def ingest_via_direct_adapter(payload: dict, clear_first: bool = False):
         })
         db_adapter.add_custom_edge(t_id, proj_id, "TRACKS")
 
-    print(f"✅ Direct ingestion complete: {len(db_adapter._node_data)} nodes, {len(db_adapter._edge_data)} edges in graph.")
+    store = db_adapter._get_tenant_store(tenant_id)
+    print(f"✅ Direct ingestion complete for workspace '{tenant_id}': {len(store['node_data'])} nodes, {len(store['edge_data'])} edges in graph.")
     return True
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest Project Ecosystem into FalkorDB Brain")
     parser.add_argument("--file", "-f", help="Path to JSON file containing project definition", default=None)
     parser.add_argument("--clear", "-c", help="Clear all existing graph data before ingestion", action="store_true")
+    parser.add_argument("--tenant", "-t", help="Tenant / Company Workspace ID", default="default")
     parser.add_argument("--url", "-u", help="Backend API Base URL", default="http://localhost:8000")
     args = parser.parse_args()
 
@@ -275,9 +277,9 @@ def main():
         project_data = DEFAULT_PROJECT
 
     # Try HTTP first; fallback to direct adapter if server is not responding
-    success = ingest_via_http(args.url, project_data, clear_first=args.clear)
+    success = ingest_via_http(args.url, project_data, clear_first=args.clear, tenant_id=args.tenant)
     if not success and "localhost" in args.url:
-        ingest_via_direct_adapter(project_data, clear_first=args.clear)
+        ingest_via_direct_adapter(project_data, clear_first=args.clear, tenant_id=args.tenant)
 
 if __name__ == "__main__":
     main()

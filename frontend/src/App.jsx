@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import confetti from "canvas-confetti";
 import Navbar from "./components/Navbar";
 import ChatPane from "./components/ChatPane";
@@ -16,10 +16,17 @@ import {
   clearGraphData,
   ingestProject,
   createGraphNode,
-  simulateBlastRadius
+  simulateBlastRadius,
+  setTenantContext,
 } from "./services/api";
 
-export default function App() {
+export default function App({ isClerkConfigured = false }) {
+  const [currentTenant, setCurrentTenant] = useState({
+    id: "default",
+    name: "Default Workspace",
+    type: "workspace",
+    token: null,
+  });
   const [health, setHealth] = useState(null);
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
   const [highlightedNodeIds, setHighlightedNodeIds] = useState([]);
@@ -57,6 +64,37 @@ export default function App() {
     const data = await fetchGraphOverview();
     setGraphData(data);
   };
+
+  const handleTenantChange = useCallback(async (newTenant) => {
+    if (!newTenant) return;
+    setTenantContext(newTenant);
+    setCurrentTenant(newTenant);
+
+    try {
+      const [dataHealth, dataGraph] = await Promise.all([
+        fetchHealth(),
+        fetchGraphOverview(),
+      ]);
+      setHealth(dataHealth);
+      setGraphData(dataGraph);
+      setHighlightedNodeIds([]);
+      setSelectedNode(null);
+      setActiveSimulation(null);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "agent",
+          text: `🏢 **Workspace Activated: ${newTenant.name}** (\`${newTenant.type}\`)\n\nGraph context is strictly isolated to FalkorDB graph namespace: \`Archaeologist_${newTenant.id || "default"}\`.\n\nAll node modifications, project scripts, and AI questions now execute solely inside this company's brain!`,
+          toolCalled: `falkordb_select_graph(Archaeologist_${newTenant.id})`,
+          latency: 14,
+          actionCards: [],
+        },
+      ]);
+    } catch (err) {
+      console.error("Failed to load workspace data:", err);
+    }
+  }, []);
 
   const handleSendMessage = async (text) => {
     setIsLoading(true);
@@ -293,6 +331,9 @@ export default function App() {
         isResetting={isResetting}
         onOpenAddEntity={() => setIsAddEntityOpen(true)}
         onOpenScriptModal={() => setIsScriptModalOpen(true)}
+        isClerkConfigured={isClerkConfigured}
+        onTenantChange={handleTenantChange}
+        currentTenant={currentTenant}
       />
 
       <main className="main-workspace">
