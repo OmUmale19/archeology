@@ -67,6 +67,41 @@ class FalkorDBAdapter:
             props["title"] = title
         node_title = props.get("title", title)
         
+        # Calculate visual hierarchy size if not explicitly configured
+        if "node_size" not in props:
+            if label == "Project":
+                if "20m" in node_id.lower() or "uber" in node_id.lower():
+                    props["node_size"] = 96
+                elif "8m" in node_id.lower() or "shopify" in node_id.lower():
+                    props["node_size"] = 82
+                else:
+                    props["node_size"] = 72
+            elif label == "CustomerTier":
+                props["node_size"] = 52
+            elif label == "Person":
+                role_str = props.get("role", "")
+                role_tier = props.get("role_tier", "")
+                if any(w in role_str or w in role_tier for w in ["VP", "Director", "Manager"]):
+                    props["node_size"] = 68
+                elif any(w in role_str or w in role_tier for w in ["Lead", "Staff"]):
+                    props["node_size"] = 58
+                elif any(w in role_str or w in role_tier for w in ["Senior", "Principal"]):
+                    props["node_size"] = 44
+                elif any(w in role_str or w in role_tier for w in ["Junior", "Associate", "Intern"]):
+                    props["node_size"] = 32
+                else:
+                    props["node_size"] = 36
+            elif label == "Team":
+                props["node_size"] = 60
+            elif label == "Service":
+                props["node_size"] = 40
+            elif label == "Decision":
+                props["node_size"] = 28
+            elif label in ["JiraTicket", "PullRequest", "Document"]:
+                props["node_size"] = 26
+            else:
+                props["node_size"] = 24
+
         self._node_data[node_id] = {
             "id": node_id,
             "label": label,
@@ -74,6 +109,7 @@ class FalkorDBAdapter:
             "properties": props
         }
         self._fallback_nx.add_node(node_id, **props)
+
 
     def register_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None):
         props = properties or {}
@@ -87,13 +123,46 @@ class FalkorDBAdapter:
         self._edge_data.append(edge_record)
         self._fallback_nx.add_edge(source_id, target_id, key=rel_type, label=rel_type, **props)
 
+    def add_custom_node(self, node_id: str, label: str, title: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a dynamic custom node into in-memory graph and FalkorDB if connected."""
+        props = dict(properties)
+        props["id"] = node_id
+        props["title"] = title
+        self.register_node(node_id, label, title, props)
+        
+        if self.is_connected and self.graph:
+            try:
+                safe_label = "".join(c for c in label if c.isalnum() or c == "_") or "Entity"
+                cypher = f"MERGE (n:{safe_label} {{id: $id}}) SET n.title = $title, n += $props"
+                self.query(cypher, {"id": node_id, "title": title, "props": props})
+            except Exception as e:
+                logger.warning(f"Could not persist custom node to FalkorDB: {e}")
+                
+        return self._node_data[node_id]
+
+    def add_custom_edge(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Add a dynamic relationship into in-memory graph and FalkorDB if connected."""
+        props = properties or {}
+        self.register_edge(source_id, target_id, rel_type, props)
+        
+        if self.is_connected and self.graph:
+            try:
+                safe_rel = "".join(c for c in rel_type if c.isalnum() or c == "_") or "RELATES_TO"
+                cypher = f"MATCH (s {{id: $source_id}}), (t {{id: $target_id}}) MERGE (s)-[r:{safe_rel}]->(t) SET r += $props"
+                self.query(cypher, {"source_id": source_id, "target_id": target_id, "props": props})
+            except Exception as e:
+                logger.warning(f"Could not persist custom edge to FalkorDB: {e}")
+                
+        return self._edge_data[-1]
+
     def get_full_graph_payload(self) -> GraphPayload:
         nodes = [
             GraphNode(
                 id=n_id,
                 label=data["label"],
                 title=data["title"],
-                properties=data["properties"]
+                properties=data["properties"],
+                node_size=data["properties"].get("node_size", 34)
             )
             for n_id, data in self._node_data.items()
         ]
@@ -126,7 +195,8 @@ class FalkorDBAdapter:
                 label=self._node_data[n_id]["label"],
                 title=self._node_data[n_id]["title"],
                 properties=self._node_data[n_id]["properties"],
-                highlighted=(n_id in node_ids)
+                highlighted=(n_id in node_ids),
+                node_size=self._node_data[n_id]["properties"].get("node_size", 34)
             )
             for n_id in all_nodes if n_id in self._node_data
         ]

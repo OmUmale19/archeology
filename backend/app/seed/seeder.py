@@ -1,7 +1,7 @@
 import logging
 from app.adapters.falkordb_adapter import db_adapter
 from app.seed.finflow_data import (
-    PEOPLE, SERVICES, CUSTOMER_TIERS, SLACK_MESSAGES,
+    PEOPLE, PROJECTS, TEAMS, SERVICES, CUSTOMER_TIERS, SLACK_MESSAGES,
     DECISIONS, JIRA_TICKETS, PULL_REQUESTS, DOCUMENTS, RELATIONSHIPS
 )
 
@@ -37,7 +37,36 @@ def seed_graph():
                 p
             )
 
-    # 2. Seed Services
+    # 2. Seed Projects
+    for prj in PROJECTS:
+        db_adapter.register_node(
+            node_id=prj["id"],
+            label="Project",
+            title=prj["name"],
+            properties=prj
+        )
+        if db_adapter.is_connected and db_adapter.graph:
+            db_adapter.query(
+                "MERGE (p:Project {id: $id}) SET p.name = $name, p.budget = $budget, p.profit_margin = $profit_margin, p.status = $status",
+                prj
+            )
+
+    # 3. Seed Teams
+    for tm in TEAMS:
+        db_adapter.register_node(
+            node_id=tm["id"],
+            label="Team",
+            title=tm["name"],
+            properties=tm
+        )
+        if db_adapter.is_connected and db_adapter.graph:
+            db_adapter.query(
+                "MERGE (t:Team {id: $id}) SET t.name = $name, t.lead = $lead, t.productivity_score = $productivity_score, t.health = $health",
+                tm
+            )
+
+    # 4. Seed Services
+
     for s in SERVICES:
         db_adapter.register_node(
             node_id=s["id"],

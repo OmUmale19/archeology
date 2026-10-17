@@ -1,7 +1,7 @@
 import React from "react";
-import { Activity, Database, Sparkles, RefreshCw, Layers, ShieldCheck } from "lucide-react";
+import { Activity, Database, Sparkles, RefreshCw, Layers, ShieldCheck, Plus, Briefcase } from "lucide-react";
 
-export default function Navbar({ onSelectScenario, activeScenario, health, onResetGraph, isResetting }) {
+export default function Navbar({ onSelectScenario, activeScenario, health, onResetGraph, isResetting, onOpenAddEntity }) {
   return (
     <header className="app-header">
       {/* Brand Identity */}
@@ -20,6 +20,14 @@ export default function Navbar({ onSelectScenario, activeScenario, health, onRes
 
       {/* Glassmorphic Scenario Pills */}
       <nav className="scenario-nav">
+        <button
+          className={`glass-pill ${activeScenario === "org" ? "active" : ""}`}
+          onClick={() => onSelectScenario("org", "Analyze project performance, profits, and team productivity across the company")}
+        >
+          <Briefcase size={13} className="pill-icon text-cyan" />
+          <span>$20M Uber & Team Org</span>
+        </button>
+
         <button
           className={`glass-pill ${activeScenario === "archaeology" ? "active" : ""}`}
           onClick={() => onSelectScenario("archaeology", "Why is the checkout timeout 7 minutes?")}
@@ -47,6 +55,15 @@ export default function Navbar({ onSelectScenario, activeScenario, health, onRes
 
       {/* Status & Control Panel */}
       <div className="header-actions">
+        <button
+          onClick={onOpenAddEntity}
+          className="add-entity-nav-btn"
+          title="Ingest New Entity into Graph"
+        >
+          <Plus size={14} />
+          <span>+ Add Entity</span>
+        </button>
+
         <div className="status-capsule">
           <span className="status-ping"></span>
           <span className="status-label">

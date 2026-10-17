@@ -70,3 +70,63 @@ def test_mcp_tools():
     assert call_res.status_code == 200
     call_data = call_res.json()
     assert call_data["isError"] is False
+
+def test_create_custom_node_and_query():
+    # 1. Create a brand-new entity
+    payload = {
+        "id": "service_fraud_guard",
+        "label": "Service",
+        "title": "FraudGuard-Engine",
+        "properties": {
+            "tier": "Tier-1",
+            "description": "Real-time AI ML transaction anomaly detection engine",
+            "repo_url": "github.com/finflow/fraud-guard"
+        },
+        "connection": {
+            "target_node_id": "service_payment_gw",
+            "relationship_type": "PROTECTS",
+            "direction": "OUTGOING"
+        }
+    }
+    create_res = client.post("/api/graph/nodes", json=payload)
+    assert create_res.status_code == 200
+    create_data = create_res.json()
+    assert create_data["status"] == "success"
+    assert create_data["node"]["id"] == "service_fraud_guard"
+    assert create_data["edge"]["label"] == "PROTECTS"
+
+    # 2. Verify graph overview has the new node
+    overview_res = client.get("/api/graph/overview")
+    assert overview_res.status_code == 200
+    overview_nodes = [n["id"] for n in overview_res.json()["nodes"]]
+    assert "service_fraud_guard" in overview_nodes
+
+    # 3. Query the new entity via the Chat agent
+    chat_res = client.post("/api/chat", json={"message": "Tell me about FraudGuard-Engine"})
+    assert chat_res.status_code == 200
+    chat_data = chat_res.json()
+    assert "FraudGuard-Engine" in chat_data["answer"]
+    assert "Real-time AI ML transaction anomaly detection" in chat_data["answer"]
+    assert "dynamic_graph_traversal" in chat_data["tool_called"]
+
+def test_dynamic_simulation_endpoint():
+    # 1. Test simulation on Elena
+    sim_res = client.post("/api/simulation/blast-radius", json={"node_id": "person_elena"})
+    assert sim_res.status_code == 200
+    sim_data = sim_res.json()
+    assert sim_data["risk_level"] == "CRITICAL"
+    assert sim_data["arr_at_risk_millions"] >= 20.0
+    assert "hop_0" in sim_data["cascade_stages"]
+    assert "hop_1" in sim_data["cascade_stages"]
+    assert len(sim_data["mitigation_steps"]) >= 3
+    assert "Marcus Vance" in sim_data["recommended_successor"]
+
+    # 2. Test simulation on a microservice (service_checkout)
+    svc_sim = client.post("/api/simulation/blast-radius", json={"node_id": "service_checkout"})
+    assert svc_sim.status_code == 200
+    svc_data = svc_sim.json()
+    assert len(svc_data["impacted_services"]) > 0
+    assert svc_data["arr_at_risk_millions"] > 0
+    assert len(svc_data["cascade_stages"]["hop_0"]) == 1
+
+

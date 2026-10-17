@@ -4,10 +4,14 @@
   "private": true,
   "description": "Archaeologist: The Enterprise Decision & Blast-Radius Brain (Track 03 - Powered by FalkorDB)",
   "scripts": {
+    "postinstall": "npm install --prefix frontend",
     "build": "npm run build --prefix frontend",
     "dev": "npm run dev --prefix frontend",
     "start": "npm run dev --prefix frontend"
   },
+  "workspaces": [
+    "frontend"
+  ],
   "keywords": [
     "falkordb",
     "graph-database",

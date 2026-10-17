@@ -5,52 +5,64 @@ Contains interconnected People, Services, Decisions, Slack Threads, PRs, Jira Ti
 
 PEOPLE = [
     {
-        "id": "person_elena",
-        "name": "Elena Rostova",
-        "handle": "@elena",
-        "role": "Staff Backend Architect",
-        "department": "Core Banking & Billing",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=elena"
+        "id": "person_priya",
+        "name": "Priya Patel",
+        "handle": "@priya",
+        "role": "VP of Engineering & Cross-Project Director",
+        "department": "Executive Leadership",
+        "role_tier": "Manager / Executive",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=priya",
+        "node_size": 68
     },
     {
         "id": "person_sarah",
         "name": "Sarah Chen",
         "handle": "@sarah",
-        "role": "Lead Checkout Engineer",
+        "role": "Team Alpha Lead & Staff Checkout Engineer",
         "department": "Consumer Checkout",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=sarah"
+        "role_tier": "Team Lead",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=sarah",
+        "node_size": 58
+    },
+    {
+        "id": "person_elena",
+        "name": "Elena Rostova",
+        "handle": "@elena",
+        "role": "Team Gamma Lead & Staff Billing Architect",
+        "department": "Core Banking & Billing",
+        "role_tier": "Team Lead",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=elena",
+        "node_size": 58
     },
     {
         "id": "person_marcus",
         "name": "Marcus Vance",
         "handle": "@marcus",
-        "role": "Senior Systems Engineer",
+        "role": "Team Beta Lead & Senior Systems Engineer",
         "department": "Platform & Reliability",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=marcus"
+        "role_tier": "Team Lead",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=marcus",
+        "node_size": 56
     },
     {
         "id": "person_david",
         "name": "David Kim",
         "handle": "@david",
-        "role": "Principal SRE",
+        "role": "Principal SRE (Team Alpha)",
         "department": "Cloud Infrastructure",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=david"
-    },
-    {
-        "id": "person_priya",
-        "name": "Priya Patel",
-        "handle": "@priya",
-        "role": "VP of Engineering",
-        "department": "Executive Leadership",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=priya"
+        "role_tier": "Senior Engineer",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=david",
+        "node_size": 44
     },
     {
         "id": "person_alex",
         "name": "Alex Torres",
         "handle": "@alex",
-        "role": "Senior Full-Stack Engineer",
+        "role": "Senior Full-Stack Engineer (Team Alpha)",
         "department": "Partner Ecosystem",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=alex"
+        "role_tier": "Senior Engineer",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=alex",
+        "node_size": 44
     },
     {
         "id": "person_jordan",
@@ -58,7 +70,111 @@ PEOPLE = [
         "handle": "@jordan",
         "role": "Lead Security Officer",
         "department": "InfoSec & Governance",
-        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=jordan"
+        "role_tier": "Senior Engineer",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=jordan",
+        "node_size": 44
+    },
+    {
+        "id": "person_lucas",
+        "name": "Lucas Zhao",
+        "handle": "@lucas",
+        "role": "Junior Software Engineer (Team Alpha)",
+        "department": "Consumer Checkout",
+        "role_tier": "Junior Engineer",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=lucas",
+        "node_size": 32
+    },
+    {
+        "id": "person_maya",
+        "name": "Maya Lin",
+        "handle": "@maya",
+        "role": "Associate QA Engineer (Team Gamma)",
+        "department": "Core Banking & Billing",
+        "role_tier": "Junior Engineer",
+        "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=maya",
+        "node_size": 32
+    }
+]
+
+PROJECTS = [
+    {
+        "id": "proj_uber_20m",
+        "name": "Uber Global Checkout & Transit ($20M)",
+        "budget": "$20,000,000 ARR",
+        "profit_margin": "+42% (High Margin)",
+        "profitability": "Highly Profitable ($8.4M Net Profit)",
+        "status": "Active - Performing Strongly",
+        "sla": "99.99%",
+        "lead": "Sarah Chen (@sarah)",
+        "coordinating_manager": "Priya Patel (@priya)",
+        "team_assigned": "Team Alpha (Consumer Checkout)",
+        "node_size": 96
+    },
+    {
+        "id": "proj_shopify_8m",
+        "name": "Shopify Merchant Reconciliation ($8.5M)",
+        "budget": "$8,500,000 ARR",
+        "profit_margin": "+35% (Healthy Margin)",
+        "profitability": "Profitable ($2.9M Net Profit)",
+        "status": "Active - Bottleneck Risk",
+        "sla": "99.99%",
+        "lead": "Elena Rostova (@elena)",
+        "coordinating_manager": "Priya Patel (@priya)",
+        "team_assigned": "Team Gamma (Billing Architecture)",
+        "node_size": 82
+    },
+    {
+        "id": "proj_deliveroo_3m",
+        "name": "Deliveroo UK Realtime Dispatch ($3M)",
+        "budget": "$3,000,000 ARR",
+        "profit_margin": "+18% (Moderate)",
+        "profitability": "Moderate Profit ($540K Net)",
+        "status": "Active",
+        "sla": "99.9%",
+        "lead": "Marcus Vance (@marcus)",
+        "coordinating_manager": "Priya Patel (@priya)",
+        "team_assigned": "Team Beta (Platform Reliability)",
+        "node_size": 72
+    }
+]
+
+TEAMS = [
+    {
+        "id": "team_alpha",
+        "name": "Team Alpha (Consumer Checkout)",
+        "lead": "Sarah Chen",
+        "velocity": "94% (High Velocity)",
+        "blockers": 0,
+        "sprint_completion": "96%",
+        "health": "Optimal",
+        "project_assigned": "Uber Global Checkout ($20M)",
+        "members": ["Sarah Chen", "David Kim", "Alex Torres", "Lucas Zhao"],
+        "node_size": 60
+    },
+    {
+        "id": "team_beta",
+        "name": "Team Beta (Platform Reliability)",
+        "lead": "Marcus Vance",
+        "velocity": "88% (Healthy)",
+        "blockers": 1,
+        "sprint_completion": "91%",
+        "health": "Good",
+        "project_assigned": "Deliveroo UK ($3M)",
+        "members": ["Marcus Vance", "Jordan Smith"],
+        "node_size": 60
+    },
+    {
+        "id": "team_gamma",
+        "name": "Team Gamma (Billing Architecture)",
+        "lead": "Elena Rostova",
+        "velocity": "61% (Bottleneck Alert)",
+        "blockers": 4,
+        "sprint_completion": "68%",
+        "health": "Severely Constrained",
+        "bottleneck_reason": "Single-maintainer SPOF on Billing-Core (92% commit share)",
+        "project_assigned": "Shopify Reconciliation ($8.5M)",
+        "members": ["Elena Rostova", "Maya Lin"],
+        "node_size": 60
     }
 ]
 
@@ -344,5 +460,34 @@ RELATIONSHIPS = [
     ("service_checkout", "cust_uber", "SERVES", {"sla": "99.99%", "contract_tier": "Platinum"}),
     ("service_billing_core", "cust_uber", "SERVES", {"sla": "99.99%", "contract_tier": "Platinum"}),
     ("service_payment_gw", "cust_shopify", "SERVES", {"sla": "99.99%", "contract_tier": "Platinum"}),
-    ("service_payment_gw", "cust_deliveroo", "SERVES", {"sla": "99.9%", "contract_tier": "Gold"})
+    ("service_payment_gw", "cust_deliveroo", "SERVES", {"sla": "99.9%", "contract_tier": "Gold"}),
+
+    # --- Project & Team Organizational Hierarchy ---
+    # Manager Priya coordinates multiple projects
+    ("person_priya", "proj_uber_20m", "COORDINATES_PROJECT", {"role": "Executive Project Director", "focus": "Global Strategy"}),
+    ("person_priya", "proj_shopify_8m", "COORDINATES_PROJECT", {"role": "Executive Project Director", "focus": "Platform Strategy"}),
+    ("person_priya", "proj_deliveroo_3m", "COORDINATES_PROJECT", {"role": "Executive Project Director", "focus": "EU Expansion"}),
+
+    # Teams executing Projects
+    ("team_alpha", "proj_uber_20m", "EXECUTES_PROJECT", {"allocation": "100% Dedicated", "velocity": "High"}),
+    ("team_gamma", "proj_shopify_8m", "EXECUTES_PROJECT", {"allocation": "100% Dedicated", "velocity": "Bottlenecked"}),
+    ("team_gamma", "proj_uber_20m", "CROSS_PROJECT_DEP", {"reason": "Powers Tax Engine for Uber EU"}),
+    ("team_beta", "proj_deliveroo_3m", "EXECUTES_PROJECT", {"allocation": "Kafka & Reliability"}),
+
+    # People leading & in Teams
+    ("person_sarah", "team_alpha", "LEADS_TEAM", {"role": "Team Lead"}),
+    ("person_david", "team_alpha", "MEMBER_OF", {"role": "Principal SRE"}),
+    ("person_alex", "team_alpha", "MEMBER_OF", {"role": "Senior Full-Stack Engineer"}),
+    ("person_lucas", "team_alpha", "MEMBER_OF", {"role": "Junior Software Engineer"}),
+    ("person_elena", "team_gamma", "LEADS_TEAM", {"role": "Staff Lead (Sole Contributor)"}),
+    ("person_maya", "team_gamma", "MEMBER_OF", {"role": "Associate QA Engineer"}),
+    ("person_marcus", "team_beta", "LEADS_TEAM", {"role": "Team Lead"}),
+
+    # Projects delivering to Customer Tiers & Services
+    ("proj_uber_20m", "cust_uber", "GENERATES_REVENUE", {"arr": "$20M", "profit_margin": "+42%"}),
+    ("proj_uber_20m", "service_checkout", "POWERS_SERVICE", {}),
+    ("proj_shopify_8m", "cust_shopify", "GENERATES_REVENUE", {"arr": "$8.5M", "profit_margin": "+35%"}),
+    ("proj_shopify_8m", "service_billing_core", "POWERS_SERVICE", {}),
+    ("proj_deliveroo_3m", "cust_deliveroo", "GENERATES_REVENUE", {"arr": "$3.0M", "profit_margin": "+18%"})
 ]
+

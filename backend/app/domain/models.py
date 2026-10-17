@@ -72,6 +72,7 @@ class GraphNode(BaseModel):
     title: str
     properties: Dict[str, Any] = Field(default_factory=dict)
     highlighted: bool = False
+    node_size: Optional[int] = None
 
 class GraphEdge(BaseModel):
     id: str
@@ -111,6 +112,14 @@ class BlastRadiusResponse(BaseModel):
     key_person_dependencies: List[str]
     graph: GraphPayload
     mitigation_steps: List[str]
+    node_id: Optional[str] = None
+    arr_at_risk_millions: Optional[float] = 0.0
+    cascade_stages: Optional[Dict[str, List[str]]] = None
+    recommended_successor: Optional[str] = None
+
+class SimulationRequest(BaseModel):
+    node_id: str
+
 
 class SMERecord(BaseModel):
     person_name: str
@@ -151,3 +160,18 @@ class ActionResponse(BaseModel):
     artifact_content: str
     ticket_id: Optional[str] = None
     link: Optional[str] = None
+
+# --- Custom Entity Ingestion ---
+
+class CreateNodeConnection(BaseModel):
+    target_node_id: str
+    relationship_type: str = "DEPENDS_ON"
+    direction: str = "OUTGOING"  # "OUTGOING" (new -> target) or "INCOMING" (target -> new)
+
+class CreateNodeRequest(BaseModel):
+    id: Optional[str] = None
+    label: str  # "Service", "Person", "JiraTicket", "Decision", "Document"
+    title: str
+    properties: Dict[str, Any] = Field(default_factory=dict)
+    connection: Optional[CreateNodeConnection] = None
+
