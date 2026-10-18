@@ -284,7 +284,7 @@ export default function App({ isClerkConfigured = false }) {
       ...prev,
       {
         sender: "agent",
-        text: `🎉 **Successfully Ingested Project Ecosystem via Script!**\n\n- **Project:** **${payload.project_name}** (\`${payload.priority || "P0"}\`)\n- **Budget:** ${payload.budget || "N/A"} (${payload.profit_margin || "N/A"})\n- **Team:** ${payload.team_name || "N/A"} (${payload.team_members?.length || 0} members)\n- **Services:** ${payload.services?.map((s) => s.name).join(", ") || "None"}\n- **Created Elements:** **${res.nodes_created} nodes**, **${res.edges_created} edges**\n\nYou can now inspect the graph canvas or ask questions about **${payload.project_name}**!`,
+        text: `📋 **Project Ecosystem Ingestion Complete**\n\n- **Project:** **${payload.project_name}** (\`${payload.priority || "P0"}\`)\n- **Budget:** ${payload.budget || "N/A"} (${payload.profit_margin || "N/A"})\n- **Team:** ${payload.team_name || "N/A"} (${payload.team_members?.length || 0} members)\n- **Services:** ${payload.services?.map((s) => s.name).join(", ") || "None"}\n- **Created Elements:** **${res.nodes_created} nodes**, **${res.edges_created} edges**\n\nYou can now inspect the graph canvas or ask questions about **${payload.project_name}**!`,
         toolCalled: `ingest_project(${projId})`,
         latency: 22,
         actionCards: [

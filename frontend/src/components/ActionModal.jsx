@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { X, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
-import confetti from "canvas-confetti";
 
 export default function ActionModal({ actionResult, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -10,11 +9,6 @@ export default function ActionModal({ actionResult, onClose }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(actionResult.artifact_content);
     setCopied(true);
-    confetti({
-      particleCount: 80,
-      spread: 60,
-      origin: { y: 0.6 }
-    });
     setTimeout(() => setCopied(false), 2500);
   };
 

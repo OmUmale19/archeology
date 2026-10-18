@@ -4,6 +4,10 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import App from './App.jsx';
 import './index.css';
 
+if (typeof window !== 'undefined') {
+  window.confetti = () => {};
+}
+
 const envKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 const storedKey = typeof window !== 'undefined' ? localStorage.getItem('clerk_publishable_key') : null;
 const rawKey = (envKey || storedKey || '').trim();
