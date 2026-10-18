@@ -7,7 +7,9 @@ import {
   RotateCcw,
   Database,
   Plus,
-  Code
+  Code,
+  ChevronRight,
+  Layers,
 } from "lucide-react";
 
 const NODE_PALETTE = {
@@ -708,27 +710,30 @@ export default function GraphCanvas({
 
       {/* Visual Hierarchy Scale Pill */}
       <div className="canvas-size-hierarchy-bar">
-        <span className="hierarchy-title">📐 Scale Hierarchy:</span>
+        <div className="hierarchy-title-group">
+          <Layers size={13} className="hierarchy-icon" />
+          <span className="hierarchy-title">Scale Hierarchy</span>
+        </div>
         <div className="hierarchy-step">
-          <span className="hierarchy-circle project-dot" style={{ width: 14, height: 14 }}></span>
+          <span className="hierarchy-circle project-dot" style={{ width: 12, height: 12 }}></span>
           <span>Project (96px)</span>
         </div>
-        <span className="hierarchy-arrow">➔</span>
+        <ChevronRight size={10} className="hierarchy-arrow" />
         <div className="hierarchy-step">
-          <span className="hierarchy-circle manager-dot" style={{ width: 12, height: 12 }}></span>
+          <span className="hierarchy-circle manager-dot" style={{ width: 10, height: 10 }}></span>
           <span>Manager (68px)</span>
         </div>
-        <span className="hierarchy-arrow">➔</span>
+        <ChevronRight size={10} className="hierarchy-arrow" />
         <div className="hierarchy-step">
-          <span className="hierarchy-circle lead-dot" style={{ width: 10, height: 10 }}></span>
+          <span className="hierarchy-circle lead-dot" style={{ width: 9, height: 9 }}></span>
           <span>Lead (58px)</span>
         </div>
-        <span className="hierarchy-arrow">➔</span>
+        <ChevronRight size={10} className="hierarchy-arrow" />
         <div className="hierarchy-step">
           <span className="hierarchy-circle senior-dot" style={{ width: 8, height: 8 }}></span>
           <span>Senior (44px)</span>
         </div>
-        <span className="hierarchy-arrow">➔</span>
+        <ChevronRight size={10} className="hierarchy-arrow" />
         <div className="hierarchy-step">
           <span className="hierarchy-circle junior-dot" style={{ width: 6, height: 6 }}></span>
           <span>Junior (32px)</span>
@@ -744,31 +749,33 @@ export default function GraphCanvas({
         <div className="canvas-empty-overlay">
           <div className="empty-state-card">
             <div className="empty-state-icon-glow">
-              <Database size={38} className="text-cyan" />
+              <Database size={34} className="text-cyan" />
             </div>
-            <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ffffff", marginBottom: "8px" }}>
+            <h3 className="empty-card-heading">
               Company Brain Ready
             </h3>
-            <p style={{ fontSize: "0.86rem", color: "#94a3b8", maxWidth: "420px", margin: "0 auto 20px", lineHeight: "1.5" }}>
-              All existing data is cleared. Input your company context using either method:
+            <p className="empty-card-desc">
+              Graph is clean and isolated. Populate your organizational lineage using either method:
             </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+            <div className="empty-card-actions">
               <button
                 onClick={onOpenAddEntity}
-                className="btn-primary"
-                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 18px", fontSize: "0.86rem" }}
+                className="empty-action-primary"
               >
-                <Plus size={16} />
-                <span>1. Add Entity (One-by-One)</span>
+                <Plus size={14} />
+                <span>1. Add Entity</span>
               </button>
               <button
                 onClick={onOpenScriptModal}
-                className="btn-secondary"
-                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 18px", fontSize: "0.86rem", borderColor: "rgba(6, 182, 212, 0.4)", color: "#22d3ee" }}
+                className="empty-action-secondary"
               >
-                <Code size={16} />
-                <span>2. Ingest Project Script</span>
+                <Code size={14} />
+                <span>2. Ingest Script</span>
               </button>
+            </div>
+            <div className="empty-card-terminal-hint">
+              <span className="hint-label">Terminal:</span>
+              <code className="hint-code">python scripts/ingest_project.py</code>
             </div>
           </div>
         </div>

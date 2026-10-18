@@ -83,16 +83,27 @@ function ClerkConnectedBar({ onTenantChange, currentTenant }) {
     <div className="clerk-auth-wrapper">
       <SignedIn>
         <div className="clerk-signed-in-group">
-          {/* Active Company / Workspace Indicator */}
-          <div className="active-tenant-indicator" title={`Isolated Graph Database for ${currentTenant?.name || "Active Workspace"}`}>
-            {currentTenant?.type === "organization" ? (
-              <Building2 size={13} className="text-cyan" />
-            ) : (
+          {/* Multi-Tenant Security & Isolation Indicator */}
+          {currentTenant?.type === "organization" ? (
+            <div
+              className="tenant-isolation-badge"
+              title={`FalkorDB Multi-Tenant Isolated Graph for ${currentTenant.name}`}
+            >
+              <span className="isolation-ping-dot" />
+              <span>Isolated Graph</span>
+            </div>
+          ) : (
+            <div
+              className="active-tenant-indicator"
+              title={`Personal Isolated Graph for ${currentTenant?.name || "Workspace"}`}
+            >
               <User size={13} className="text-emerald" />
-            )}
-            <span className="active-tenant-name">{currentTenant?.name || "Company"}</span>
-            <span className="active-tenant-badge">Isolated Graph</span>
-          </div>
+              <span className="active-tenant-name">
+                {currentTenant?.name || "Personal"}
+              </span>
+              <span className="active-tenant-badge">Isolated</span>
+            </div>
+          )}
 
           {/* Clerk Organization / Company Switcher */}
           <div className="clerk-org-switcher-box">

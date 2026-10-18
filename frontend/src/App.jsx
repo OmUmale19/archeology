@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import confetti from "canvas-confetti";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import Navbar from "./components/Navbar";
 import ChatPane from "./components/ChatPane";
 import GraphCanvas from "./components/GraphCanvas";
@@ -8,6 +9,8 @@ import ActionModal from "./components/ActionModal";
 import AddEntityModal from "./components/AddEntityModal";
 import ProjectScriptModal from "./components/ProjectScriptModal";
 import DisasterHUD from "./components/DisasterHUD";
+import HomePage from "./components/HomePage";
+import FeaturesPage from "./components/FeaturesPage";
 import {
   fetchHealth,
   fetchGraphOverview,
@@ -21,6 +24,7 @@ import {
 } from "./services/api";
 
 export default function App({ isClerkConfigured = false }) {
+  const [view, setView] = useState("home");
   const [currentTenant, setCurrentTenant] = useState({
     id: "default",
     name: "Default Workspace",
@@ -321,7 +325,26 @@ export default function App({ isClerkConfigured = false }) {
     ]);
   };
 
-  return (
+  const homeElement = (
+    <HomePage
+      isClerkConfigured={isClerkConfigured}
+      onEnterWorkspace={() => setView("workspace")}
+      onNavigateFeatures={() => setView("features")}
+      currentTenant={currentTenant}
+      health={health}
+    />
+  );
+
+  const featuresElement = (
+    <FeaturesPage
+      isClerkConfigured={isClerkConfigured}
+      onNavigateHome={() => setView("home")}
+      onEnterWorkspace={() => setView("workspace")}
+      health={health}
+    />
+  );
+
+  const workspaceElement = (
     <div className="app-container">
       <Navbar
         onSelectScenario={handleSelectScenario}
@@ -334,6 +357,8 @@ export default function App({ isClerkConfigured = false }) {
         isClerkConfigured={isClerkConfigured}
         onTenantChange={handleTenantChange}
         currentTenant={currentTenant}
+        onNavigateHome={() => setView("home")}
+        onNavigateFeatures={() => setView("features")}
       />
 
       <main className="main-workspace">
@@ -397,6 +422,32 @@ export default function App({ isClerkConfigured = false }) {
         />
       )}
     </div>
+  );
+
+  if (isClerkConfigured) {
+    return (
+      <ClerkGatedWorkspace
+        view={view}
+        homeElement={homeElement}
+        featuresElement={featuresElement}
+        workspaceElement={workspaceElement}
+      />
+    );
+  }
+
+  return view === "home" ? homeElement : view === "features" ? featuresElement : workspaceElement;
+}
+
+function ClerkGatedWorkspace({ view, homeElement, featuresElement, workspaceElement }) {
+  return (
+    <>
+      <SignedOut>
+        {view === "features" ? featuresElement : homeElement}
+      </SignedOut>
+      <SignedIn>
+        {view === "home" ? homeElement : view === "features" ? featuresElement : workspaceElement}
+      </SignedIn>
+    </>
   );
 }
 
