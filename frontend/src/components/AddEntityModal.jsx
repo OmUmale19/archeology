@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Plus, Server, User, AlertCircle, FileText, Layers, Link2, Sparkles, ArrowRight, Briefcase, Users } from "lucide-react";
+import { X, Plus, Server, User, AlertCircle, FileText, Layers, Link2, Sparkles, ArrowRight, Briefcase, Users, Loader2 } from "lucide-react";
 
 const ENTITY_TYPES = [
   { label: "Project", icon: Briefcase, color: "#06b6d4", bg: "rgba(6, 182, 212, 0.15)", desc: "Product / Strategic Initiative" },
@@ -506,12 +506,20 @@ export default function AddEntityModal({ isOpen, onClose, existingNodes, onSubmi
               type="submit"
               className="btn-primary"
               disabled={isSubmitting || !title.trim()}
-              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                minWidth: "190px",
+                justifyContent: "center",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                opacity: isSubmitting ? 0.9 : 1,
+              }}
             >
               {isSubmitting ? (
                 <>
-                  <span className="glowing-spinner" style={{ width: 14, height: 14 }}></span>
-                  <span>Writing to FalkorDB...</span>
+                  <Loader2 size={16} className="animate-spin text-white" />
+                  <span style={{ fontWeight: 600, color: "#ffffff" }}>Writing to FalkorDB...</span>
                 </>
               ) : (
                 <>

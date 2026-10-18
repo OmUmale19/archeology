@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Play, Code, FileText, Plus, Trash2, Sparkles, CheckCircle2, AlertCircle, Briefcase, Users, Server, Shield } from "lucide-react";
+import { X, Play, Code, FileText, Plus, Trash2, Sparkles, CheckCircle2, AlertCircle, Briefcase, Users, Server, Shield, Loader2 } from "lucide-react";
 
 const SAMPLE_PROJECT_TEMPLATE = {
   project_name: "Apex Global Checkout",
@@ -497,7 +497,7 @@ export default function ProjectScriptModal({ isOpen, onClose, onIngest }) {
               🔄 Reset to Template
             </button>
 
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
               <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </button>
@@ -505,16 +505,25 @@ export default function ProjectScriptModal({ isOpen, onClose, onIngest }) {
                 type="submit"
                 className="btn-primary"
                 disabled={isSubmitting || !!jsonError}
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  minWidth: "190px",
+                  justifyContent: "center",
+                  cursor: isSubmitting ? "not-allowed" : "pointer",
+                  opacity: isSubmitting ? 0.9 : 1,
+                  boxShadow: isSubmitting ? "0 0 16px rgba(99, 102, 241, 0.6)" : "0 4px 14px rgba(99, 102, 241, 0.35)",
+                }}
               >
                 {isSubmitting ? (
                   <>
-                    <span className="glowing-spinner" style={{ width: 14, height: 14 }}></span>
-                    <span>Running Ingestion Script...</span>
+                    <Loader2 size={16} className="animate-spin text-white" />
+                    <span style={{ fontWeight: 600, color: "#ffffff" }}>Ingesting Graph...</span>
                   </>
                 ) : (
                   <>
-                    <Play size={14} />
+                    <Play size={14} fill="currentColor" />
                     <span>Run Ingestion Script</span>
                   </>
                 )}

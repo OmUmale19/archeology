@@ -390,7 +390,8 @@ body {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
-.spin-icon {
+.spin-icon,
+.animate-spin {
   animation: spin 1s linear infinite;
 }
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import confetti from "canvas-confetti";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import Navbar from "./components/Navbar";
 import ChatPane from "./components/ChatPane";
@@ -167,13 +166,6 @@ export default function App({ isClerkConfigured = false }) {
   const handleCreateEntity = async (payload) => {
     const res = await createGraphNode(payload);
 
-    // Play confetti
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.5 },
-    });
-
     // Refresh graph and health stats
     await loadGraph();
     await loadHealth();
@@ -279,13 +271,6 @@ export default function App({ isClerkConfigured = false }) {
 
   const handleIngestProject = async (payload) => {
     const res = await ingestProject(payload);
-
-    // Play celebration confetti
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { y: 0.5 },
-    });
 
     await loadGraph();
     await loadHealth();
