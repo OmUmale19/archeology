@@ -2,6 +2,9 @@
 ### Track 03: Company Brain | Powered by [FalkorDB](https://www.falkordb.com/)
 *Graph Hacks: Context for AI Agents Hackathon*
 
+🌐 **Live Application:** [https://archeology-bay.vercel.app/](https://archeology-bay.vercel.app/)  
+💻 **GitHub Repository:** [https://github.com/OmUmale19/archeology](https://github.com/OmUmale19/archeology)
+
 ---
 
 ## 📌 Executive Summary
@@ -200,7 +203,13 @@ RETURN doc.title AS stale_document,
 
 ## 🚀 Quickstart & Setup Guide
 
-### Option 1: One-Click Local Run (Recommended)
+### ⚡ Option 0: Live Production Deployment (Instant Access)
+Run and evaluate Archaeologist immediately without installing any dependencies:  
+👉 **[https://archeology-bay.vercel.app/](https://archeology-bay.vercel.app/)**
+
+---
+
+### Option 1: One-Click Local Run
 
 #### 1. Backend Setup:
 ```bash
