@@ -174,6 +174,7 @@ def ingest_via_direct_adapter(payload: dict, clear_first: bool = False):
     if backend_dir not in sys.path:
         sys.path.insert(0, backend_dir)
         
+    # pyrefly: ignore[missing-import]
     from app.adapters.falkordb_adapter import db_adapter
 
     if clear_first:

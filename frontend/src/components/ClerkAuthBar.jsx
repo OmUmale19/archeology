@@ -49,26 +49,33 @@ function ClerkConnectedBar({ onTenantChange, currentTenant }) {
       if (!isMounted) return;
 
       if (organization) {
-        onTenantChange({
-          id: organization.id,
-          name: organization.name,
-          type: "organization",
-          token,
-        });
+        if (currentTenant?.id !== organization.id || currentTenant?.type !== "organization" || currentTenant?.token !== token) {
+          onTenantChange({
+            id: organization.id,
+            name: organization.name,
+            type: "organization",
+            token,
+          });
+        }
       } else if (user) {
-        onTenantChange({
-          id: user.id,
-          name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress || "Personal Workspace",
-          type: "personal",
-          token,
-        });
+        const userName = user.fullName || user.username || user.primaryEmailAddress?.emailAddress || "Personal Workspace";
+        if (currentTenant?.id !== user.id || currentTenant?.type !== "personal" || currentTenant?.token !== token) {
+          onTenantChange({
+            id: user.id,
+            name: userName,
+            type: "personal",
+            token,
+          });
+        }
       } else {
-        onTenantChange({
-          id: "default",
-          name: "Guest Workspace",
-          type: "guest",
-          token: null,
-        });
+        if (currentTenant?.id !== "default" || currentTenant?.type !== "guest") {
+          onTenantChange({
+            id: "default",
+            name: "Guest Workspace",
+            type: "guest",
+            token: null,
+          });
+        }
       }
     }
 
