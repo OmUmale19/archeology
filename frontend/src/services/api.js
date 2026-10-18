@@ -1,6 +1,8 @@
 const rawApiBase = import.meta.env.VITE_API_BASE || "/api";
 const API_BASE = rawApiBase.replace(/\/+$/, "");
 
+const BACKEND_FALLBACK = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+
 let currentTenant = {
   id: "default",
   name: "Default Workspace",
@@ -30,7 +32,25 @@ async function request(endpoint, options = {}) {
     ...(currentTenant.token ? { Authorization: `Bearer ${currentTenant.token}` } : {}),
     ...(options.headers || {}),
   };
-  return fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+
+  const primaryUrl = `${API_BASE}${endpoint}`;
+  try {
+    return await fetch(primaryUrl, { ...options, headers });
+  } catch (err) {
+    // If the proxied /api request fails (e.g. Vite dev proxy drop, IPv6 issue),
+    // automatically attempt failover to direct backend server
+    if (primaryUrl.startsWith("/api") && !primaryUrl.startsWith("http")) {
+      const fallbackUrl = `${BACKEND_FALLBACK}/api${endpoint}`;
+      try {
+        console.warn(`[API] Proxy request failed (${err.message}). Retrying direct backend: ${fallbackUrl}`);
+        return await fetch(fallbackUrl, { ...options, headers });
+      } catch (fallbackErr) {
+        console.error(`[API] Both proxy (${primaryUrl}) and direct backend (${fallbackUrl}) failed:`, fallbackErr);
+        throw new Error(`Unable to reach backend server: ${err.message}. Please ensure the backend is running on port 8000.`);
+      }
+    }
+    throw err;
+  }
 }
 
 export async function fetchHealth() {
@@ -97,8 +117,14 @@ export async function ingestProject(payload) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `Failed to ingest project: ${res.statusText}`);
+    let errorDetail = `Failed to ingest project: HTTP ${res.status} ${res.statusText}`;
+    try {
+      const errorData = await res.json();
+      if (errorData.detail) {
+        errorDetail = typeof errorData.detail === "string" ? errorData.detail : JSON.stringify(errorData.detail);
+      }
+    } catch (_) {}
+    throw new Error(errorDetail);
   }
   return await res.json();
 }

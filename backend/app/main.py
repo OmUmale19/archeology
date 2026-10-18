@@ -44,7 +44,14 @@ app = FastAPI(
 # Enable CORS for Vite/React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://10.206.29.192:5173",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -239,27 +246,30 @@ def ingest_project_endpoint(req: IngestProjectRequest, tenant_id: str = Depends(
         created_edges = []
         
         # 1. Project Node
-        proj_slug = slugify(req.project_name)
+        proj_name = (req.project_name or "Project").strip()
+        proj_slug = slugify(proj_name)
         project_id = f"proj_{proj_slug}"
+        priority_raw = req.priority or "P0 - Critical"
+        priority_lower = priority_raw.lower()
         proj_props = {
-            "name": req.project_name,
-            "priority": req.priority,
-            "status": req.status,
+            "name": proj_name,
+            "priority": priority_raw,
+            "status": req.status or "Active",
             "budget": req.budget or "$10M ARR",
             "profit_margin": req.profit_margin or "+35%",
-            "description": req.description or f"Strategic project: {req.project_name}",
-            "node_size": 94 if "p0" in req.priority.lower() or "critical" in req.priority.lower() else 80
+            "description": req.description or f"Strategic project: {proj_name}",
+            "node_size": 94 if "p0" in priority_lower or "critical" in priority_lower else 80
         }
-        proj_node = db_adapter.add_custom_node(project_id, "Project", req.project_name, proj_props, tenant_id=tenant_id)
+        proj_node = db_adapter.add_custom_node(project_id, "Project", proj_name, proj_props, tenant_id=tenant_id)
         created_nodes.append(proj_node)
 
         # 2. Team Node
-        team_name = req.team_name or f"Team {req.project_name.split()[0]}"
+        team_name = req.team_name or f"Team {proj_name.split()[0]}"
         team_slug = slugify(team_name)
         team_id = f"team_{team_slug}"
         team_props = {
             "name": team_name,
-            "project": req.project_name,
+            "project": proj_name,
             "health": "EXCELLENT",
             "node_size": 65
         }
@@ -268,22 +278,23 @@ def ingest_project_endpoint(req: IngestProjectRequest, tenant_id: str = Depends(
         created_edges.append(db_adapter.add_custom_edge(team_id, project_id, "DELIVERS", tenant_id=tenant_id))
 
         # 3. Team Members
-        for m in req.team_members:
-            mem_slug = slugify(m.name)
+        for m in (req.team_members or []):
+            mem_name = (m.name or "Engineer").strip()
+            mem_slug = slugify(mem_name)
             mem_id = f"person_{mem_slug}"
             handle = m.handle if m.handle else f"@{mem_slug}"
             if not handle.startswith("@"):
                 handle = f"@{handle}"
             mem_props = {
-                "name": m.name,
+                "name": mem_name,
                 "handle": handle,
-                "role": m.role,
-                "department": m.department,
+                "role": m.role or "Engineer",
+                "department": m.department or "Engineering",
                 "role_tier": "Lead" if m.is_lead else "Engineer",
-                "is_lead": m.is_lead,
+                "is_lead": bool(m.is_lead),
                 "node_size": 58 if m.is_lead else 42
             }
-            mem_node = db_adapter.add_custom_node(mem_id, "Person", m.name, mem_props, tenant_id=tenant_id)
+            mem_node = db_adapter.add_custom_node(mem_id, "Person", mem_name, mem_props, tenant_id=tenant_id)
             created_nodes.append(mem_node)
             created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "MEMBER_OF", tenant_id=tenant_id))
             created_edges.append(db_adapter.add_custom_edge(mem_id, project_id, "CONTRIBUTES_TO", tenant_id=tenant_id))
@@ -291,47 +302,50 @@ def ingest_project_endpoint(req: IngestProjectRequest, tenant_id: str = Depends(
                 created_edges.append(db_adapter.add_custom_edge(mem_id, team_id, "LEADS", tenant_id=tenant_id))
 
         # 4. Services
-        for s in req.services:
-            svc_slug = slugify(s.name)
+        for s in (req.services or []):
+            svc_name = (s.name or "Service").strip()
+            svc_slug = slugify(svc_name)
             svc_id = f"svc_{svc_slug}"
             svc_props = {
-                "name": s.name,
-                "tier": s.tier,
-                "description": s.description or f"Microservice powering {req.project_name}",
+                "name": svc_name,
+                "tier": s.tier or "Tier-1",
+                "description": s.description or f"Microservice powering {proj_name}",
                 "repo_url": s.repo_url or f"github.com/company/{svc_slug}",
                 "node_size": 46
             }
-            svc_node = db_adapter.add_custom_node(svc_id, "Service", s.name, svc_props, tenant_id=tenant_id)
+            svc_node = db_adapter.add_custom_node(svc_id, "Service", svc_name, svc_props, tenant_id=tenant_id)
             created_nodes.append(svc_node)
             created_edges.append(db_adapter.add_custom_edge(project_id, svc_id, "POWERED_BY", tenant_id=tenant_id))
             created_edges.append(db_adapter.add_custom_edge(team_id, svc_id, "MAINTAINS", tenant_id=tenant_id))
 
         # 5. Decisions
-        for d in req.decisions:
-            dec_slug = slugify(d.title)
+        for d in (req.decisions or []):
+            dec_title = (d.title or "ADR").strip()
+            dec_slug = slugify(dec_title)
             dec_id = f"dec_{dec_slug}"
             dec_props = {
-                "title": d.title,
-                "status": d.status,
-                "rationale": d.rationale,
+                "title": dec_title,
+                "status": d.status or "ACCEPTED",
+                "rationale": d.rationale or "",
                 "node_size": 32
             }
-            dec_node = db_adapter.add_custom_node(dec_id, "Decision", d.title, dec_props, tenant_id=tenant_id)
+            dec_node = db_adapter.add_custom_node(dec_id, "Decision", dec_title, dec_props, tenant_id=tenant_id)
             created_nodes.append(dec_node)
             created_edges.append(db_adapter.add_custom_edge(project_id, dec_id, "GOVERNED_BY", tenant_id=tenant_id))
 
         # 6. Jira Tickets
-        for t in req.tickets:
-            t_slug = slugify(t.key)
+        for t in (req.tickets or []):
+            t_key = (t.key or "TICKET").strip()
+            t_slug = slugify(t_key)
             t_id = f"ticket_{t_slug}"
             t_props = {
-                "key": t.key,
-                "summary": t.summary,
-                "priority": t.priority,
-                "status": t.status,
+                "key": t_key,
+                "summary": t.summary or "",
+                "priority": t.priority or "P1 - High",
+                "status": t.status or "In Progress",
                 "node_size": 30
             }
-            t_node = db_adapter.add_custom_node(t_id, "JiraTicket", f"{t.key}: {t.summary}", t_props, tenant_id=tenant_id)
+            t_node = db_adapter.add_custom_node(t_id, "JiraTicket", f"{t_key}: {t.summary or ''}", t_props, tenant_id=tenant_id)
             created_nodes.append(t_node)
             created_edges.append(db_adapter.add_custom_edge(t_id, project_id, "TRACKS", tenant_id=tenant_id))
             if t.assignee_handle:
