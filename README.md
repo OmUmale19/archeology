@@ -20,38 +20,7 @@ Traditional **Vector RAG (Retrieval-Augmented Generation)** fails at enterprise 
 ---
 
 ## 🏛️ System Architecture & Design Patterns
-
-```
-                               ┌────────────────────────────────────────────────────────┐
-                               │           NEXT-GEN DUAL-PANE WEB WORKSTATION           │
-                               │   (React + Cytoscape.js Physics Canvas + Glassmorphism)│
-                               └───────────┬────────────────────────────────▲───────────┘
-                                           │ HTTP / JSON                    │ Subgraph Payload
-                                           ▼                                │
-┌───────────────────────────────────────────────────────────────────────────┴────────────────────────────┐
-│                                   FASTAPI GATEWAY & MCP SERVER LAYER                                   │
-│  • REST Endpoints (/api/chat, /api/graph/overview)     • Model Context Protocol (MCP) Tools Registry   │
-└──────────────────┬──────────────────────────────────────────────────────────────────▲──────────────────┘
-                   │                                                                  │
-                   ▼                                                                  │
-┌─────────────────────────────────────────────────────────────────────────────────────┴──────────────────┐
-│                                     CORE AGENT ORCHESTRATION LOOP                                      │
-│                                                                                                        │
-│   ┌───────────────────────────┐     ┌────────────────────────────┐     ┌───────────────────────────┐   │
-│   │    Decision Archaeology   │     │    Blast-Radius Simulator  │     │    Dynamic SME Engine     │   │
-│   │         (Lineage)         │     │         (Cross-Domain)     │     │     (PageRank/Centrality) │   │
-│   └─────────────┬─────────────┘     └─────────────┬──────────────┘     └─────────────┬─────────────┘   │
-└─────────────────┼─────────────────────────────────┼──────────────────────────────────┼─────────────────┘
-                  │                                 │                                  │
-                  ▼                                 ▼                                  ▼
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                         FALKORDB GRAPH ENGINE                                          │
-│                                                                                                        │
-│   Nodes: Person, Service, Decision, SlackMessage, JiraTicket, PullRequest, Document, CustomerTier      │
-│   Edges: AUTHORED, REVIEWED, TRIGGERED, SPAWNED, FORMALIZED_IN, IMPLEMENTED_BY, MODIFIES, DEPENDS_ON   │
-│   Graph Algorithms: ShortestPath, PageRank, Betweenness Centrality                                     │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+![Architecture Diagram](images/architecture.png)
 
 ### Applied System Design Patterns:
 - **CQRS (Command Query Responsibility Segregation):** Ingestion path streams events and links causal edges transactionally; query path executes sub-millisecond Cypher traversals.
@@ -59,6 +28,135 @@ Traditional **Vector RAG (Retrieval-Augmented Generation)** fails at enterprise 
 - **Model Context Protocol (MCP):** Standards-compliant MCP server exposing graph algorithms as tools to external agents (Claude Desktop, Cursor, Antigravity).
 - **Subgraph Projection Pattern:** Converts high-dimensional Cypher traversals into structured JSON context for LLMs and visual payloads for Cytoscape.
 - **Event-Driven Anti-Entropy:** Background drift detection flags documentation rot when new PRs supersede older specs.
+
+---
+
+## 🗺️ FalkorDB Graph Schema & Architecture Map
+
+FalkorDB is the foundational context engine connecting enterprise teams, code, infrastructure, and historical decisions into an active knowledge graph.
+
+### 1. Graph Topology Map (Mermaid)
+
+```mermaid
+graph TD
+    classDef person fill:#4f46e5,stroke:#3730a3,stroke-width:2px,color:#fff;
+    classDef service fill:#0891b2,stroke:#0e7490,stroke-width:2px,color:#fff;
+    classDef decision fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef ticket fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff;
+    classDef customer fill:#db2777,stroke:#be185d,stroke-width:2px,color:#fff;
+    classDef doc fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff;
+
+    P1["Person: Elena Rostova (Staff Architect)"]:::person
+    P2["Person: Marcus Vance (Senior SRE)"]:::person
+    P3["Person: Sarah Chen (Senior Dev)"]:::person
+    P4["Person: David Kim (DevOps Lead)"]:::person
+
+    S1["Service: Billing-Core"]:::service
+    S2["Service: Payment-Gateway"]:::service
+    S3["Service: Checkout-Service"]:::service
+
+    DEC1["Decision: DEC-015 Reduce Cart TTL to 7m"]:::decision
+    
+    T1["Incident: INC-104 (Redis Memory Pressure)"]:::ticket
+    T2["RFC: RFC-205 (Checkout Timeout Architecture)"]:::ticket
+    PR1["PullRequest: PR #89 (Implement 7m TTL)"]:::ticket
+    PR2["PullRequest: PR #412 (Ed25519 Webhooks)"]:::ticket
+    
+    C1["EnterpriseCustomer: Uber ($12M ARR)"]:::customer
+    C2["EnterpriseCustomer: Shopify ($8.5M ARR)"]:::customer
+
+    DOC1["ConfluenceDoc: Webhook Integration Guide"]:::doc
+
+    %% Structural Relationships
+    P1 -->|OWNS 92%| S1
+    P2 -->|REVIEWED PRs FOR| P1
+    P3 -->|AUTHORED| PR1
+    P4 -->|REPORTED| T1
+
+    S2 -->|DEPENDS_ON| S1
+    S3 -->|DEPENDS_ON| S2
+
+    C1 -->|BOUND_BY_SLA| S1
+    C2 -->|BOUND_BY_SLA| S2
+
+    %% Causal Decision DAG
+    T1 -->|TRIGGERED| DEC1
+    DEC1 -->|FORMALIZED_IN| T2
+    T2 -->|IMPLEMENTED_BY| PR1
+    PR1 -->|MODIFIES| S3
+
+    %% Anti-Entropy Drift
+    PR2 -->|SUPERSEDES| DOC1
+    PR2 -->|MODIFIES| S2
+```
+
+### 2. Node & Relationship Taxonomy
+
+| Node Label | Key Properties | Role in Enterprise Brain |
+| :--- | :--- | :--- |
+| **`Person`** | `id`, `name`, `role`, `team`, `seniority`, `tenure_months` | Engineers, architects, project leads, stakeholders |
+| **`Service`** | `id`, `name`, `tier`, `repo_url`, `language`, `sla_target` | Production microservices, APIs, core infrastructure |
+| **`Project`** | `id`, `name`, `status`, `priority`, `budget`, `due_date` | Strategic company milestones & multi-team initiatives |
+| **`Team`** | `id`, `name`, `lead`, `focus_area` | Engineering organizations & squads |
+| **`Decision`** | `id`, `title`, `rationale`, `status`, `approved_by`, `date` | Architectural decisions (ADRs) & tradeoffs |
+| **`Incident` / `Ticket`** | `id`, `severity`, `title`, `cost_estimate`, `source` | Production incidents, Jira tasks, postmortems |
+| **`PullRequest`** | `number`, `title`, `author`, `diff_stats`, `merged_at` | Code commits, PR reviews, architectural implementations |
+| **`ConfluenceDoc`** | `id`, `title`, `url`, `last_updated`, `is_stale` | Technical specs, runbooks, partner guides |
+| **`EnterpriseCustomer`** | `id`, `name`, `tier`, `arr`, `sla` | High-value SLA stakeholders ($ ARR risk) |
+
+---
+
+## 🛡️ Showing FalkorDB Doing the Work: Graph Algorithms & Cypher
+
+The Archaeologist agent does not guess or perform naive keyword search. Every decision lineage trail, blast-radius calculation, and SME discovery originates directly from FalkorDB Cypher traversals:
+
+### 1. Multi-Hop Causal Lineage Query (Decision Archaeology)
+Traces backward from a production microservice configuration through pull requests, RFC decisions, and incident tickets to the original root-cause Slack thread:
+```cypher
+MATCH path = (s:Service {name: $service_name})
+  <-[:MODIFIES]-(pr:PullRequest)
+  <-[:IMPLEMENTED_BY]-(rfc:JiraTicket)
+  <-[:FORMALIZED_IN]-(d:Decision)
+  <-[:TRIGGERED]-(inc:Incident)
+  <-[:REPORTED]-(src)
+RETURN nodes(path), relationships(path)
+```
+
+### 2. Key-Person Risk & Blast Radius Cascades
+Identifies critical ownership bottlenecks and traverses 1 to 3 dependency hops to evaluate enterprise customer SLA exposure:
+```cypher
+MATCH (p:Person {name: $person_name})-[o:OWNS]->(critical:Service)
+WHERE o.ownership_percentage > 0.80
+MATCH (dependent:Service)-[:DEPENDS_ON*1..3]->(critical)
+MATCH (customer:EnterpriseCustomer)-[:BOUND_BY_SLA]->(dependent)
+RETURN critical.name AS bottleneck,
+       collect(DISTINCT dependent.name) AS impacted_services,
+       sum(customer.arr) AS total_arr_at_risk
+```
+
+### 3. Dynamic SME Succession via Graph Proximity
+When an architect departs, FalkorDB identifies the optimal successor by querying PR review topology and collaboration density:
+```cypher
+MATCH (departing:Person {name: $person_name})<-[:AUTHORED]-(pr:PullRequest)
+MATCH (peer:Person)-[:REVIEWED]->(pr)
+WHERE peer.name <> departing.name
+RETURN peer.name AS successor,
+       count(pr) AS shared_reviews,
+       (count(pr) * 1.0) / departing.total_prs AS knowledge_proximity
+ORDER BY knowledge_proximity DESC
+LIMIT 1
+```
+
+### 4. Knowledge Drift & Stale Documentation Audit
+Discovers technical documentation contradicted or superseded by merged pull requests:
+```cypher
+MATCH (pr:PullRequest)-[:SUPERSEDES]->(doc:ConfluenceDoc)
+WHERE doc.status = 'ACTIVE' AND pr.merged_at > doc.last_updated
+RETURN doc.title AS stale_document,
+       doc.deprecated_api AS deprecated_field,
+       pr.number AS superseding_pr,
+       pr.new_api AS modern_field
+```
 
 ---
 
